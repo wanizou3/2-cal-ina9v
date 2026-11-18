@@ -679,6 +679,9 @@ function cardHtml(d,s,t,ro){
       h+='<p class="note wait">'+esc(pt.name)+'の回答待ちです。</p>';
     }
   }
+  if(!ro&&(t.kind==='me'||t.kind==='both')){   // 自分が出したリクエスト(空き)は、確定するまで取り消せる
+    h+='<button class="lnk" data-act="cancelreq" data-slot="'+s.k+'">'+(t.kind==='me'?'リクエストを取り消す':'自分の空きを取り消す')+'</button>';
+  }
   return h+'</div>';
 }
 
@@ -805,6 +808,13 @@ document.addEventListener('click',function(e){
       var full=allKeys.every(function(k){return cs.indexOf(k)>=0;});
       var next=full?cs.filter(function(k){return allKeys.indexOf(k)<0;}):allKeys.concat(cs.filter(function(k){return allKeys.indexOf(k)<0;}));
       setOffers(d,next,offerComments()); break;
+    }
+    case 'cancelreq': {
+      var tq=st(d,slot);
+      var msg=tq.ptAns?'このリクエストを取り消しますか?'+S.partner.name+'の回答も消えます。':'このリクエストを取り消しますか?';
+      if(!confirm(msg))break;
+      setOffers(d,mySlots(d).filter(function(k){return k!==slot;}),offerComments());
+      toast('リクエストを取り消しました'); break;
     }
     case 'ans': {
       var t=st(d,slot), same=t.myAns&&t.myAns.answer===val;
