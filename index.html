@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="予定調整">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%92%3C/text%3E%3C/svg%3E">
+<base target="_top">
+<meta name="robots" content="noindex,nofollow">
+<title>ふたりの予定調整</title>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#fff; --ink:#1f2433; --muted:#6b7280; --line:#e5e7eb; --soft:#f1f3f8;
+  --me:#2563eb; --me-bg:#dbeafe;
+  --pt:#ea580c; --pt-bg:#ffedd5;
+  --both:#15803d; --both-bg:#dcfce7;
+  --conf:#7c3aed; --conf-bg:#ede9fe;
+  --ok:#15803d; --maybe:#a16207; --ng:#6b7280;
+  --shadow:0 8px 30px rgba(20,24,40,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#12141b; --card:#1b1f2a; --ink:#e8eaf0; --muted:#9aa1b2; --line:#2b3140; --soft:#232837;
+    --me:#7ea6ff; --me-bg:#1e2f57;
+    --pt:#ffa066; --pt-bg:#4a2b16;
+    --both:#6ee09a; --both-bg:#16361f;
+    --conf:#b79bff; --conf-bg:#33265a;
+    --ok:#6ee09a; --maybe:#f0c15a; --ng:#9aa1b2;
+    --shadow:0 8px 30px rgba(0,0,0,.5);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  font-size:15px;line-height:1.5}
+button{font:inherit;color:inherit;cursor:pointer}
+#app{max-width:680px;margin:0 auto;padding:14px 12px 40px}
+
+/* ヘッダー */
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.brand{display:flex;align-items:center;gap:8px}
+.brand h1{font-size:17px;margin:0;letter-spacing:.02em}
+.who{font-size:12px;color:var(--muted);text-align:right}
+#saving{font-size:12px;color:var(--muted);min-height:18px;text-align:right}
+
+/* 状況バー */
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.sum{flex:1 1 200px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:13px}
+.sum b{font-size:18px}
+.sum.need{border-color:var(--pt);background:var(--pt-bg)}
+.sum button{border:0;background:var(--pt);color:#fff;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600}
+@media (prefers-color-scheme: dark){ .sum button{color:#1b1f2a} }
+
+/* 月ナビ */
+.monthbar{display:flex;align-items:center;gap:8px;margin:6px 0 8px}
+.monthbar h2{flex:1;margin:0;font-size:18px;text-align:center}
+.nav{border:1px solid var(--line);background:var(--card);border-radius:10px;width:40px;height:36px;font-size:18px}
+.nav.today{width:auto;padding:0 12px;font-size:13px}
+
+/* 凡例 */
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:11.5px;color:var(--muted);margin-bottom:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px}
+.dot.me{background:var(--me)} .dot.pt{background:var(--pt)} .dot.both{background:var(--both)} .dot.conf{background:var(--conf)}
+
+/* カレンダー */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wd{text-align:center;font-size:11.5px;color:var(--muted);padding:2px 0}
+.wd.sun{color:#dc2626}
+.day{background:var(--card);border:1px solid var(--line);border-radius:10px;min-height:84px;padding:4px 3px 4px;
+  display:flex;flex-direction:column;gap:2px;text-align:left;position:relative}
+.day.blank{background:transparent;border:0;cursor:default}
+.day.past{opacity:.5}
+.day.today{border:2px solid var(--ink)}
+.day .n{font-size:12px;font-weight:600;padding-left:2px}
+.day.sun .n{color:#dc2626}
+.pill{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;line-height:1.25;
+  border-radius:5px;padding:1px 4px;font-weight:600}
+.pill i{font-style:normal}
+.pill.empty{visibility:hidden}
+.k-me{background:var(--me-bg);color:var(--me)}
+.k-pt{background:var(--pt-bg);color:var(--pt)}
+.k-both{background:var(--both-bg);color:var(--both)}
+.k-conf{background:var(--conf);color:#fff}
+@media (prefers-color-scheme: dark){ .k-conf{color:#1b1f2a} }
+.day.need::after{content:"";position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--pt)}
+
+/* 確定リスト */
+.listcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:16px}
+.listcard h3{margin:0 0 6px;font-size:14px}
+.listcard ul{list-style:none;margin:0;padding:0}
+.listcard li{padding:7px 0;border-top:1px solid var(--line);display:flex;gap:10px;align-items:baseline;cursor:pointer}
+.listcard li:first-child{border-top:0}
+.listcard .d{font-weight:700;white-space:nowrap;color:var(--conf)}
+.listcard .t{flex:1}
+.listcard .s{font-size:12px;color:var(--muted)}
+.empty-note{color:var(--muted);font-size:13px;margin:4px 0}
+
+details.howto{margin-top:14px;font-size:13px;color:var(--muted)}
+details.howto summary{cursor:pointer}
+details.howto ol{margin:6px 0 0;padding-left:20px}
+.foot{margin-top:18px;text-align:center;font-size:11.5px;color:var(--muted)}
+
+/* ボトムシート */
+.sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet.hidden{display:none}
+.backdrop{position:absolute;inset:0;background:rgba(10,12,20,.45)}
+.panel{position:relative;width:100%;max-width:560px;max-height:90vh;overflow:auto;background:var(--card);
+  border-radius:18px 18px 0 0;padding:14px 14px 28px;box-shadow:var(--shadow);animation:up .18s ease-out}
+@media (min-width:700px){ .sheet{align-items:center} .panel{border-radius:18px} }
+@keyframes up{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.sh-date{font-size:19px;font-weight:700}
+.sh-sub{font-size:12px;color:var(--muted)}
+.x{border:0;background:var(--soft);width:34px;height:34px;border-radius:50%;font-size:15px}
+.panel section{margin-top:14px}
+.panel h3{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:6px}
+.panel h3 small{font-weight:400;color:var(--muted);font-size:11.5px}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:8px 16px;font-weight:600;font-size:14px}
+.chip.on{background:var(--me);border-color:var(--me);color:#fff}
+.chip:disabled{opacity:.45;cursor:not-allowed}
+@media (prefers-color-scheme: dark){ .chip.on{color:#12141b} }
+
+.card{border:1px solid var(--line);border-left-width:5px;border-radius:12px;padding:10px 12px;margin-bottom:10px;background:var(--card)}
+.card.k-me{border-left-color:var(--me)} .card.k-pt{border-left-color:var(--pt)}
+.card.k-both{border-left-color:var(--both)} .card.conf{border-left-color:var(--conf);background:var(--conf-bg)}
+.card.k-me,.card.k-pt,.card.k-both{color:var(--ink);background:var(--card)}
+.ch{display:flex;align-items:center;gap:8px}
+.ch b{font-size:15px}
+.ch .hint{font-size:11.5px;color:var(--muted)}
+.badge{margin-left:auto;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+.badge.me{background:var(--me-bg);color:var(--me)} .badge.pt{background:var(--pt-bg);color:var(--pt)}
+.badge.both{background:var(--both-bg);color:var(--both)} .badge.conf{background:var(--conf);color:#fff}
+@media (prefers-color-scheme: dark){ .badge.conf{color:#1b1f2a} }
+.note{margin:6px 0;font-size:13px}
+.note.OK{color:var(--ok)} .note.MAYBE{color:var(--maybe)} .note.NG{color:var(--ng)} .note.wait{color:var(--muted)}
+.cmtshow{font-size:13px;background:var(--soft);border-radius:8px;padding:6px 9px;margin:4px 0}
+.ans{display:flex;gap:6px;margin:6px 0}
+.ab{flex:1;border:1.5px solid var(--line);background:var(--card);border-radius:10px;padding:9px 4px;font-weight:700;font-size:13.5px}
+.ab.OK.on{background:var(--both);border-color:var(--both);color:#fff}
+.ab.MAYBE.on{background:#ca8a04;border-color:#ca8a04;color:#fff}
+.ab.NG.on{background:#6b7280;border-color:#6b7280;color:#fff}
+.ab:disabled{opacity:.5}
+input[type=text]{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:8px 10px;font:inherit;font-size:14px}
+.cmt{margin-top:2px}
+.bulk{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.bulk button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:4px 10px;font-weight:600}
+.btn{border:0;background:var(--conf);color:#fff;border-radius:10px;padding:9px 14px;font-weight:700;font-size:14px}
+@media (prefers-color-scheme: dark){ .btn{color:#1b1f2a} }
+.btn.ghost{background:var(--soft);color:var(--ink)}
+.lnk{border:0;background:none;color:var(--muted);text-decoration:underline;padding:4px 0;font-size:12.5px}
+.confirm-open{margin-top:8px;border:1.5px dashed var(--conf);background:transparent;color:var(--conf);
+  border-radius:10px;padding:8px 12px;font-weight:700;width:100%}
+.cform{margin-top:8px;display:flex;flex-direction:column;gap:8px;background:var(--soft);padding:10px;border-radius:10px}
+.cform .row{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
+.cform label{display:inline-flex;align-items:center;gap:5px}
+.cform .btns{display:flex;gap:8px}
+.ct{font-weight:700;font-size:15px;margin-top:4px}
+.cm{font-size:13px;color:var(--muted)}
+
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1f2433;color:#fff;padding:9px 16px;
+  border-radius:999px;font-size:13px;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
+#toast.show{opacity:1} #toast.err{background:#b91c1c}
+.center{padding:60px 16px;text-align:center;color:var(--muted)}
+
+/* ログイン */
+.login{max-width:360px;margin:50px auto 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 18px;text-align:center}
+.login .lock{font-size:34px}
+.login h2{margin:6px 0 4px;font-size:18px}
+.login p{margin:0 0 14px;color:var(--muted);font-size:13px}
+.login input[type=password],.login input[type=text]{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:11px 12px;font:inherit;font-size:16px;text-align:center}
+.login label{display:flex;align-items:center;justify-content:center;gap:6px;margin:12px 0;font-size:13px;color:var(--muted)}
+.login .btn{width:100%;padding:11px}
+.login .msg{color:#dc2626;font-size:13px;min-height:20px;margin-top:10px}
+.logout{border:0;background:none;color:var(--muted);text-decoration:underline;font-size:12px;padding:0 0 0 6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span>🔒</span><h1 id="title">ふたりの予定調整</h1></div>
+    <div><div class="who" id="who"></div><div id="saving"></div></div>
+  </header>
+  <div id="main"><div class="center">読み込み中…</div></div>
+</div>
+
+<div id="sheet" class="sheet hidden">
+  <div class="backdrop" data-act="close"></div>
+  <div class="panel" id="panel"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+var SLOTS=[{k:'AM',label:'午前',short:'前',hint:'〜12時'},{k:'PM',label:'午後',short:'後',hint:'12〜18時'},{k:'NIGHT',label:'夜',short:'夜',hint:'18時〜'}];
+var SYM={OK:'○',MAYBE:'△',NG:'×'};
+var LAB={OK:'行ける',MAYBE:'要相談',NG:'難しい'};
+var WD=['日','月','火','水','木','金','土'];
+
+function pad(n){return String(n).padStart(2,'0');}
+function ds(y,m,d){return y+'-'+pad(m+1)+'-'+pad(d);}
+var now=new Date();
+var todayStr=ds(now.getFullYear(),now.getMonth(),now.getDate());
+function dateLabel(s){var p=s.split('-').map(Number);return p[1]+'月'+p[2]+'日('+WD[new Date(p[0],p[1]-1,p[2]).getDay()]+')';}
+function shortLabel(s){var p=s.split('-').map(Number);return p[1]+'/'+p[2]+'('+WD[new Date(p[0],p[1]-1,p[2]).getDay()]+')';}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function $(s){return document.querySelector(s);}
+
+var S=null, D={offers:[],answers:[],confirms:[]}, idx={};
+var view={y:now.getFullYear(),m:now.getMonth()};
+var openDate=null, confirming=null;
+
+/* ---------- 合言葉(この端末に覚えさせる場合だけ localStorage に保存) ---------- */
+var pc='';
+var PC_KEY='futari_pc';
+function loadPc(){try{return localStorage.getItem(PC_KEY)||'';}catch(e){return '';}}
+function savePc(v){try{localStorage.setItem(PC_KEY,v);}catch(e){}}
+function clearPc(){try{localStorage.removeItem(PC_KEY);}catch(e){}}
+
+/* ---------- サーバー呼び出し(先頭の引数に合言葉を付ける) ----------
+   API_URL が空 → GASの中で開いている場合(google.script.run を使う)
+   API_URL がある → GitHub Pages など外に置いた場合(GASのURLへ fetch で送る) */
+var API_URL='https://script.google.com/macros/s/AKfycbzo82CA6MOwsz_UIjAlYwgnQA9_kO18ZjsEsmCJZegHXQj_7usep1XBUnQGWNgpsk5aVw/exec';
+function call(fn){
+  var args=[pc].concat([].slice.call(arguments,1));
+  if(!API_URL&&window.google&&google.script&&google.script.run){
+    return new Promise(function(res,rej){
+      var r=google.script.run.withSuccessHandler(res).withFailureHandler(function(e){rej(e);});
+      r[fn].apply(r,args);
+    });
+  }
+  // Content-Type を text/plain にして、ブラウザの事前確認(preflight)を避ける。Cookie(Googleアカウント)は送らない
+  return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:fn,args:args})})
+    .then(function(r){return r.json();},function(){throw new Error('通信に失敗しました');})
+    .then(function(j){
+      if(!j||!j.ok)throw new Error((j&&j.error)||'通信に失敗しました');
+      return j.data;
+    });
+}
+function isAuthErr(e){var m=(e&&e.message)||'';return m.indexOf('AUTH')>=0||m.indexOf('LOCKED')>=0;}
+var pending=0, chain=Promise.resolve(), latest=null;
+function enqueue(fn){
+  pending++; showSaving();
+  chain=chain.then(fn).then(function(r){latest=r;},function(e){toast(errMsg(e),true);latest='reload';}).then(function(){
+    pending--; showSaving();
+    if(pending===0){
+      if(latest==='reload'){reload();}
+      else if(latest){D=latest;build();renderAll();}
+      latest=null;
+    }
+  });
+}
+function showSaving(){$('#saving').textContent=pending>0?'保存中…':'';}
+function errMsg(e){
+  var m=(e&&e.message)?String(e.message).replace(/^Error:\s*/,''):'通信に失敗しました';
+  if(m.indexOf('LOCKED')>=0){
+    var mm=/LOCKED:(\d+)/.exec(m), n=mm?Number(mm[1]):0;
+    var wait=!n?'しばらく':(n>=120?'あと約'+Math.ceil(n/60)+'時間':'あと約'+n+'分');
+    return '失敗が続いたため、ロックされています('+wait+'お待ちください)';
+  }
+  if(m.indexOf('AUTH')>=0)return '合言葉がちがいます';
+  return m;
+}
+function reload(){
+  return call('apiInit').then(function(r){S={me:r.me,partner:r.partner,title:r.title};D=r.data;build();renderAll();})
+    .catch(function(e){
+      if(isAuthErr(e)){
+        var m=errMsg(e);
+        if((e.message||'').indexOf('LOCKED')>=0){ // ロック中: 覚えさせた合言葉は消さない
+          if(S){toast(m,true);}else{pc='';showLogin(m);}
+          return;
+        }
+        S=null; pc=''; clearPc(); showLogin(m); return; // 合言葉が通らない → ログイン画面へ
+      }
+      if(!S){$('#main').innerHTML='<div class="center">開けませんでした。<br>'+esc(errMsg(e))+'</div>';} else toast(errMsg(e),true);
+    });
+}
+
+/* ---------- ログイン画面 ---------- */
+function showLogin(msg){
+  close_();
+  $('#who').innerHTML='';
+  $('#main').innerHTML='<div class="login"><div class="lock">🔒</div><h2>合言葉を入れてください</h2>'
+    +'<p>2人だけの予定調整です</p>'
+    +'<input type="text" id="pcin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="合言葉(8文字)">'
+    +'<label><input type="checkbox" id="pcsave" checked>この端末で覚える</label>'
+    +'<button class="btn" id="pcgo">開く</button>'
+    +'<div class="msg" id="pcmsg">'+esc(msg||'')+'</div></div>';
+  var go=function(){
+    var v=$('#pcin').value; if(!v)return;
+    pc=v; $('#pcmsg').textContent='確認中…'; $('#pcgo').disabled=true;
+    call('apiInit').then(function(r){
+      if($('#pcsave')&&$('#pcsave').checked)savePc(v);
+      S={me:r.me,partner:r.partner,title:r.title};D=r.data;build();renderAll();
+    }).catch(function(e){
+      pc=''; var b=$('#pcgo'); if(b)b.disabled=false;
+      var mm=$('#pcmsg'); if(mm)mm.textContent=errMsg(e);
+    });
+  };
+  $('#pcgo').addEventListener('click',go);
+  // 文字は隠しつつ、日本語入力(漢字変換)もできるようにする。対応していないブラウザでは通常のパスワード欄にする
+  var pin=$('#pcin');
+  var masked=window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'));
+  if(masked){pin.style.webkitTextSecurity='disc';pin.style.textSecurity='disc';}
+  else{pin.type='password';}
+  // 漢字変換の確定のEnterでは、ログインしない
+  pin.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)go();});
+}
+function logout(){S=null;pc='';clearPc();showLogin('');}
+
+/* ---------- データ索引 ---------- */
+function build(){
+  idx={offer:{},ans:{},conf:{}};
+  D.offers.forEach(function(o){idx.offer[o.date+'|'+o.slot+'|'+o.by]=1;});
+  D.answers.forEach(function(a){idx.ans[a.date+'|'+a.slot+'|'+a.by]=a;});
+  D.confirms.forEach(function(c){idx.conf[c.date+'|'+c.slot]=c;});
+}
+function st(d,s){
+  var k=d+'|'+s, me=S.me.id, pt=S.partner.id;
+  var conf=idx.conf[k], mo=!!idx.offer[k+'|'+me], po=!!idx.offer[k+'|'+pt];
+  var myAns=idx.ans[k+'|'+me], ptAns=idx.ans[k+'|'+pt];
+  var kind=null, sym='';
+  if(conf){kind='conf';sym='確';}
+  else if(mo&&po){kind='both';sym='◎';}
+  else if(po){kind='pt';sym=myAns?SYM[myAns.answer]:'!';}
+  else if(mo){kind='me';sym=ptAns?SYM[ptAns.answer]:'…';}
+  return {kind:kind,sym:sym,conf:conf,mo:mo,po:po,myAns:myAns,ptAns:ptAns};
+}
+
+/* ---------- 楽観的な画面更新(サーバー側と同じ規則) ---------- */
+function localSetOffers(date,slots){
+  var me=S.me.id;
+  var before=D.offers.filter(function(o){return o.date===date&&o.by===me;}).map(function(o){return o.slot;});
+  var keep={}; slots.forEach(function(s){keep[s]=1;});
+  before.forEach(function(s){if(idx.conf[date+'|'+s])keep[s]=1;});
+  var dropped=before.filter(function(s){return !keep[s];});
+  D.offers=D.offers.filter(function(o){return !(o.date===date&&o.by===me);});
+  Object.keys(keep).forEach(function(s){D.offers.push({date:date,slot:s,by:me});});
+  D.answers=D.answers.filter(function(a){return !(a.date===date&&dropped.indexOf(a.slot)>=0&&a.by!==me);});
+  build();
+}
+function localSetAnswers(date,items){
+  var me=S.me.id;
+  items.forEach(function(it){
+    D.answers=D.answers.filter(function(a){return !(a.date===date&&a.slot===it.slot&&a.by===me);});
+    if(it.answer)D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||''});
+  });
+  build();
+}
+
+/* ---------- 描画: メイン ---------- */
+function renderAll(){
+  if(!S)return;
+  $('#title').textContent=S.title;
+  $('#who').innerHTML='ログイン中: '+esc(S.me.name)+'<button class="logout" data-act="logout">ログアウト</button>';
+  var h='';
+  h+=summaryHtml();
+  h+='<div class="monthbar"><button class="nav" data-act="prev" aria-label="前の月">‹</button>'
+    +'<h2>'+view.y+'年'+(view.m+1)+'月</h2>'
+    +'<button class="nav today" data-act="today">今日</button>'
+    +'<button class="nav" data-act="next" aria-label="次の月">›</button></div>';
+  h+='<div class="legend"><span><i class="dot me"></i>あなたが提示</span><span><i class="dot pt"></i>'+esc(S.partner.name)+'が提示</span>'
+    +'<span><i class="dot both"></i>2人とも空き(◎)</span><span><i class="dot conf"></i>確定</span>'
+    +'<span>○行ける △要相談 ×難しい …回答待ち !要回答</span></div>';
+  h+=calHtml();
+  h+=confirmedListHtml();
+  h+='<details class="howto"><summary>使い方</summary><ol>'
+    +'<li>空いている日をタップ →「午前・午後・夜・1日中」から、あなたの空き時間を選びます。</li>'
+    +'<li>相手が空きを出したら、その日をタップして ○ △ × で回答します(コメントも書けます)。</li>'
+    +'<li>日程が決まったら「この枠で確定」を押します。</li></ol></details>';
+  h+='<div class="foot">🔒 合言葉を知っている2人だけが開けます</div>';
+  $('#main').innerHTML=h;
+  if(openDate)renderSheet();
+}
+
+function summaryHtml(){
+  var need=[],wait=0;
+  D.offers.forEach(function(o){
+    if(o.date<todayStr)return;
+    var t=st(o.date,o.slot);
+    if(t.kind==='pt'&&!t.myAns)need.push(o.date);
+    if(t.kind==='me'&&!t.ptAns)wait++;
+  });
+  need.sort();
+  var h='<div class="summary">';
+  if(need.length){
+    h+='<div class="sum need"><span>'+esc(S.partner.name)+'の空きに <b>'+need.length+'</b> 枠、未回答があります</span>'
+      +'<button data-act="gonext" data-date="'+need[0]+'">回答する</button></div>';
+  }else{
+    h+='<div class="sum"><span>未回答はありません ✓</span></div>';
+  }
+  h+='<div class="sum"><span>あなたの提示で回答待ち <b>'+wait+'</b> 枠</span></div></div>';
+  return h;
+}
+
+function calHtml(){
+  var y=view.y,m=view.m,first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate();
+  var h='<div class="cal">';
+  WD.forEach(function(w,i){h+='<div class="wd'+(i===0?' sun':'')+'">'+w+'</div>';});
+  for(var i=0;i<first;i++)h+='<div class="day blank"></div>';
+  for(var d=1;d<=dim;d++){
+    var s=ds(y,m,d), dow=(first+d-1)%7, needDay=false;
+    var pills=SLOTS.map(function(sl){
+      var t=st(s,sl.k);
+      if(t.kind==='pt'&&!t.myAns&&s>=todayStr)needDay=true;
+      return t.kind?'<span class="pill k-'+t.kind+'"><b>'+sl.short+'</b><i>'+t.sym+'</i></span>'
+                   :'<span class="pill empty"><b>'+sl.short+'</b></span>';
+    }).join('');
+    h+='<button class="day'+(s<todayStr?' past':'')+(s===todayStr?' today':'')+(dow===0?' sun':'')+(needDay?' need':'')
+      +'" data-act="open" data-date="'+s+'"><span class="n">'+d+'</span>'+pills+'</button>';
+  }
+  return h+'</div>';
+}
+
+function confirmedListHtml(){
+  var groups={};
+  D.confirms.forEach(function(c){
+    if(c.date<todayStr)return;
+    var k=c.date+'|'+c.title+'|'+c.memo;
+    (groups[k]=groups[k]||{date:c.date,title:c.title,memo:c.memo,slots:[]}).slots.push(c.slot);
+  });
+  var arr=Object.keys(groups).map(function(k){return groups[k];}).sort(function(a,b){return a.date<b.date?-1:1;});
+  var h='<div class="listcard"><h3>📌 確定した予定</h3>';
+  if(!arr.length)return h+'<div class="empty-note">まだ確定した予定はありません</div></div>';
+  h+='<ul>'+arr.map(function(g){
+    var sl=SLOTS.filter(function(s){return g.slots.indexOf(s.k)>=0;});
+    var label=sl.length===3?'1日中':sl.map(function(s){return s.label;}).join('・');
+    return '<li data-act="open" data-date="'+g.date+'"><span class="d">'+shortLabel(g.date)+'</span>'
+      +'<span class="t">'+esc(g.title)+(g.memo?'<div class="s">'+esc(g.memo)+'</div>':'')+'</span><span class="s">'+label+'</span></li>';
+  }).join('')+'</ul></div>';
+  return h;
+}
+
+/* ---------- 描画: 日ごとのシート ---------- */
+function renderSheet(){
+  var d=openDate, ro=d<todayStr, pt=S.partner;
+  var sts=SLOTS.map(function(s){return st(d,s.k);});
+  var allMine=sts.every(function(t){return t.mo;});
+  var anyLocked=sts.some(function(t){return t.conf;});
+  var h='<div class="sh-head"><div><div class="sh-date">'+dateLabel(d)+'</div>'
+    +'<div class="sh-sub">'+(ro?'過ぎた日です(閲覧のみ)':'')+'</div></div>'
+    +'<button class="x" data-act="close" aria-label="閉じる">✕</button></div>';
+
+  h+='<section><h3><i class="dot me"></i>あなたの空き時間<small>空いている時間帯をタップ</small></h3><div class="chips">';
+  SLOTS.forEach(function(s,i){
+    h+='<button class="chip'+(sts[i].mo?' on':'')+'" data-act="chip" data-slot="'+s.k+'"'+((ro||sts[i].conf)?' disabled':'')+'>'+s.label+'</button>';
+  });
+  h+='<button class="chip'+(allMine?' on':'')+'" data-act="chipall"'+((ro||anyLocked)?' disabled':'')+'>1日中</button></div></section>';
+
+  h+='<section><h3><i class="dot pt"></i>この日の調整状況</h3>';
+  var active=SLOTS.filter(function(s,i){return sts[i].kind;});
+  if(!active.length){
+    h+='<p class="empty-note">この日は、まだ誰も空きを出していません。</p>';
+  }else{
+    var ptOnly=SLOTS.filter(function(s,i){return sts[i].kind==='pt';});
+    if(ptOnly.length>=2&&!ro){
+      h+='<div class="bulk"><span>'+esc(pt.name)+'の空きに まとめて回答:</span>'
+        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+LAB[v]+'</button>';}).join('')+'</div>';
+    }
+    SLOTS.forEach(function(s,i){if(sts[i].kind)h+=cardHtml(d,s,sts[i],ro);});
+  }
+  h+='</section>';
+  $('#panel').innerHTML=h;
+}
+
+function cardHtml(d,s,t,ro){
+  var pt=S.partner;
+  if(t.kind==='conf'){
+    var c=t.conf;
+    return '<div class="card conf"><div class="ch"><b>'+s.label+'</b><span class="hint">'+s.hint+'</span><span class="badge conf">確定</span></div>'
+      +'<div class="ct">'+esc(c.title)+'</div>'+(c.memo?'<div class="cm">'+esc(c.memo)+'</div>':'')
+      +(ro?'':'<button class="lnk" data-act="unconfirm" data-slot="'+s.k+'">確定を取り消す</button>')+'</div>';
+  }
+  var badge={both:['both','2人とも空き'],pt:['pt',esc(pt.name)+'が提示'],me:['me','あなたが提示']}[t.kind];
+  var h='<div class="card k-'+t.kind+'"><div class="ch"><b>'+s.label+'</b><span class="hint">'+s.hint+'</span>'
+    +'<span class="badge '+badge[0]+'">'+badge[1]+'</span></div>';
+  if(t.kind==='both'){
+    h+='<p class="note OK">2人とも空いています 🎉 そのまま確定できます。</p>';
+  }else if(t.kind==='pt'){
+    h+='<p class="note">'+esc(pt.name)+'が空きを出しています。ご都合は?</p><div class="ans">'
+      +['OK','MAYBE','NG'].map(function(v){
+        return '<button class="ab '+v+(t.myAns&&t.myAns.answer===v?' on':'')+'" data-act="ans" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+LAB[v]+'</button>';
+      }).join('')+'</div>'
+      +'<input type="text" class="cmt" data-slot="'+s.k+'" maxlength="100" placeholder="コメント(任意) 例:19時以降なら"'
+      +' value="'+esc(t.myAns?t.myAns.comment:'')+'"'+(ro?' disabled':'')+'>';
+  }else if(t.kind==='me'){
+    if(t.ptAns){
+      h+='<p class="note '+t.ptAns.answer+'">'+esc(pt.name)+'の回答: <b>'+SYM[t.ptAns.answer]+' '+LAB[t.ptAns.answer]+'</b></p>'
+        +(t.ptAns.comment?'<div class="cmtshow">💬 '+esc(t.ptAns.comment)+'</div>':'');
+    }else{
+      h+='<p class="note wait">'+esc(pt.name)+'の回答待ちです…</p>';
+    }
+  }
+  if(!ro){
+    if(confirming===s.k){
+      var cand=SLOTS.filter(function(x){var tx=st(d,x.k);return tx.kind&&tx.kind!=='conf';});
+      h+='<div class="cform"><input type="text" class="c-title" maxlength="60" placeholder="タイトル(例:打ち合わせ)">'
+        +'<div class="row">'+cand.map(function(x){
+          return '<label><input type="checkbox" class="c-slot" value="'+x.k+'"'+(x.k===s.k?' checked':'')+'>'+x.label+'</label>';
+        }).join('')+'</div>'
+        +'<input type="text" class="c-memo" maxlength="200" placeholder="メモ(場所など・任意)">'
+        +'<div class="btns"><button class="btn" data-act="confirmdo">確定する</button><button class="btn ghost" data-act="confirmcancel">やめる</button></div></div>';
+    }else{
+      h+='<button class="confirm-open" data-act="confirmopen" data-slot="'+s.k+'">この枠で確定</button>';
+    }
+  }
+  return h+'</div>';
+}
+
+/* ---------- 操作 ---------- */
+function mySlots(d){return SLOTS.filter(function(s){return st(d,s.k).mo;}).map(function(s){return s.k;});}
+function setOffers(d,slots){
+  localSetOffers(d,slots); renderAll();
+  enqueue(function(){return call('apiSaveOffers',d,slots);});
+}
+function saveAnswers(d,items){
+  localSetAnswers(d,items); renderAll();
+  enqueue(function(){return call('apiSaveAnswers',d,items);});
+}
+function cardComment(slot){var el=$('#panel .cmt[data-slot="'+slot+'"]');return el?el.value:'';}
+
+function open_(d,focusFirst){
+  openDate=d; confirming=null;
+  var p=d.split('-').map(Number); view={y:p[0],m:p[1]-1};
+  $('#sheet').classList.remove('hidden');
+  renderAll();
+  $('#panel').scrollTop=0;
+}
+function close_(){openDate=null;confirming=null;$('#sheet').classList.add('hidden');}
+
+document.addEventListener('click',function(e){
+  var el=e.target.closest('[data-act]'); if(!el||el.disabled)return;
+  var act=el.getAttribute('data-act'), slot=el.getAttribute('data-slot'), val=el.getAttribute('data-val'), date=el.getAttribute('data-date');
+  var d=openDate;
+  switch(act){
+    case 'prev': view.m--; if(view.m<0){view.m=11;view.y--;} renderAll(); break;
+    case 'next': view.m++; if(view.m>11){view.m=0;view.y++;} renderAll(); break;
+    case 'today': view={y:now.getFullYear(),m:now.getMonth()}; renderAll(); break;
+    case 'open': open_(date); break;
+    case 'gonext': open_(date); break;
+    case 'close': close_(); break;
+    case 'logout': logout(); break;
+    case 'chip': {
+      var cur=mySlots(d), i=cur.indexOf(slot);
+      if(i>=0)cur.splice(i,1); else cur.push(slot);
+      setOffers(d,cur); break;
+    }
+    case 'chipall': {
+      var all=SLOTS.map(function(s){return s.k;});
+      setOffers(d, mySlots(d).length===3?[]:all); break;
+    }
+    case 'ans': {
+      var t=st(d,slot), same=t.myAns&&t.myAns.answer===val;
+      saveAnswers(d,[{slot:slot,answer:same?'':val,comment:same?'':cardComment(slot)}]); break;
+    }
+    case 'ansall': {
+      var items=SLOTS.filter(function(s){return st(d,s.k).kind==='pt';}).map(function(s){
+        var t2=st(d,s.k); return {slot:s.k,answer:val,comment:t2.myAns?t2.myAns.comment:''};
+      });
+      saveAnswers(d,items); break;
+    }
+    case 'confirmopen': confirming=slot; renderSheet(); var ti=$('#panel .c-title'); if(ti)ti.focus(); break;
+    case 'confirmcancel': confirming=null; renderSheet(); break;
+    case 'confirmdo': {
+      var title=$('#panel .c-title').value, memo=$('#panel .c-memo').value;
+      var slots=[].slice.call(document.querySelectorAll('#panel .c-slot:checked')).map(function(x){return x.value;});
+      if(!slots.length){toast('時間帯を選んでください',true);break;}
+      confirming=null;
+      enqueue(function(){return call('apiConfirm',d,slots,title,memo);});
+      toast('確定しました'); break;
+    }
+    case 'unconfirm': {
+      var c=idx.conf[d+'|'+slot]; if(!c)break;
+      var group=SLOTS.filter(function(s){var x=idx.conf[d+'|'+s.k];return x&&x.title===c.title&&x.memo===c.memo;}).map(function(s){return s.k;});
+      if(!confirm('この確定を取り消しますか?'))break;
+      enqueue(function(){return call('apiUnconfirm',d,group);}); break;
+    }
+  }
+});
+// コメントを書き換えたら、回答済みの場合だけ保存
+document.addEventListener('change',function(e){
+  var el=e.target; if(!el.classList||!el.classList.contains('cmt'))return;
+  var slot=el.getAttribute('data-slot'), t=st(openDate,slot);
+  if(t.myAns)saveAnswers(openDate,[{slot:slot,answer:t.myAns.answer,comment:el.value}]);
+  else toast('先に ○ △ × を選ぶと、コメントも一緒に送られます');
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openDate)close_();});
+
+var toastTimer;
+function toast(msg,isErr){
+  var t=$('#toast'); t.textContent=msg; t.className='show'+(isErr?' err':'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.className='';},2600);
+}
+
+// 相手の更新を取り込む(シートを開いていない時だけ)
+setInterval(function(){if(!document.hidden&&!openDate&&pending===0&&S)reload();},30000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&!openDate&&pending===0&&S)reload();});
+
+pc=loadPc();
+if(pc){reload();}else{showLogin('');}
+})();
+</script>
+</body>
+</html>
