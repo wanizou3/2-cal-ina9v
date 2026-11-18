@@ -161,11 +161,6 @@ input[type=text]:focus,input[type=password]:focus{outline:2px solid var(--pri);o
 .confirm-open{margin-top:6px;border:1px solid var(--pri);background:var(--card);color:var(--pri);
   border-radius:3px;padding:7px 12px;font-weight:700;width:100%}
 @media (prefers-color-scheme: dark){ .confirm-open{color:var(--ink)} }
-.cform{margin-top:8px;display:flex;flex-direction:column;gap:8px;background:var(--soft);padding:10px;border:1px solid var(--line)}
-.cform .lb{font-size:12px;color:var(--muted);margin-bottom:-4px}
-.cform .row{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
-.cform label{display:inline-flex;align-items:center;gap:5px}
-.cform .btns{display:flex;gap:8px}
 .ct{font-weight:700;font-size:14.5px;margin-top:4px}
 .cm{font-size:13px;color:var(--muted)}
 
@@ -270,7 +265,7 @@ function shortLabel(s){var p=s.split('-').map(Number);return p[1]+'/'+p[2]+'('+W
 
 var S=null, D={offers:[],answers:[],confirms:[]}, idx={};
 var view={y:now.getFullYear(),m:now.getMonth()};
-var openDate=null, confirming=null;
+var openDate=null;
 
 /* ---------- パスワード(タブを閉じると消える sessionStorage にだけ置く) ---------- */
 var pc='';
@@ -438,10 +433,18 @@ function localSetOffers(date,slots,comments){
   build();
 }
 function localSetAnswers(date,items){
-  var me=S.me.id;
+  var me=S.me.id, pt=S.partner.id;
   items.forEach(function(it){
     D.answers=D.answers.filter(function(a){return !(a.date===date&&a.slot===it.slot&&a.by===me);});
-    if(it.answer)D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||''});
+    if(!it.answer)return;
+    D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||''});
+    // ○(OK)で答えた枠は、自動で確定になる
+    var po=idx.offer[date+'|'+it.slot+'|'+pt];
+    if(it.answer==='OK'&&po&&!idx.conf[date+'|'+it.slot]){
+      var memo=[po.comment,String(it.comment||'').trim().slice(0,100)].filter(function(x){return x;}).join(' / ');
+      D.confirms.push({date:date,slot:it.slot,title:'予定',memo:memo,by:me});
+    }
+    build();
   });
   build();
 }
@@ -570,7 +573,7 @@ function renderSheet(){
     var ptOnly=SLOTS.filter(function(s,i){return sts[i].kind==='pt';});
     if(ptOnly.length>=2&&!ro){
       h+='<div class="bulk"><span>'+esc(pt.name)+'の空きに まとめて回答:</span>'
-        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+LAB[v]+'</button>';}).join('')+'</div>';
+        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+(v==='OK'?'OK(確定)':LAB[v])+'</button>';}).join('')+'</div>';
     }
     SLOTS.forEach(function(s,i){if(sts[i].kind)h+=cardHtml(d,s,sts[i],ro);});
     if(!ro)h+=confirmHtml(d,sts);
@@ -594,11 +597,11 @@ function cardHtml(d,s,t,ro){
     h+='<div class="cmtshow">'+esc(pt.name)+'のコメント: '+esc(t.ptComment)+'</div>';
   }
   if(t.kind==='both'){
-    h+='<p class="note OK">2人とも空いています。そのまま確定できます。</p>';
+    h+='<p class="note OK">2人とも空いています。下の「確定」で決定できます。</p>';
   }else if(t.kind==='pt'){
-    h+='<p class="note">'+esc(pt.name)+'が空きを出しています。ご都合は?</p><div class="ans">'
+    h+='<p class="note">'+esc(pt.name)+'から空きのリクエストです。○ OK を押すと、この枠で確定します。</p><div class="ans">'
       +['OK','MAYBE','NG'].map(function(v){
-        return '<button class="ab '+v+(t.myAns&&t.myAns.answer===v?' on':'')+'" data-act="ans" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+LAB[v]+'</button>';
+        return '<button class="ab '+v+(t.myAns&&t.myAns.answer===v?' on':'')+'" data-act="ans" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+(v==='OK'?'OK(確定)':LAB[v])+'</button>';
       }).join('')+'</div>'
       +'<input type="text" class="cmt" data-slot="'+s.k+'" maxlength="100" placeholder="コメント(任意) 例:19時以降なら"'
       +' value="'+esc(t.myAns?t.myAns.comment:'')+'"'+(ro?' disabled':'')+'>';
@@ -613,23 +616,11 @@ function cardHtml(d,s,t,ro){
   return h+'</div>';
 }
 
-// 確定は、1日につき最後に1つだけ。どの時間帯を確定するかは、ここで選ぶ
+// 相手の回答(○)で確定するので、手動の「確定」は、2人とも空き(◎)の枠だけ。1日につき1つ
 function confirmHtml(d,sts){
-  var cand=SLOTS.filter(function(x,i){return sts[i].kind&&sts[i].kind!=='conf';});
-  if(!cand.length)return '';
-  if(!confirming)return '<button class="confirm-open" data-act="confirmopen">確定</button>';
-  // 2人の都合が合っている枠(◎、または回答が ○/△)を、最初からチェックしておく
-  function agreed(t){
-    return t.kind==='both'||(t.kind==='pt'&&t.myAns&&t.myAns.answer!=='NG')||(t.kind==='me'&&t.ptAns&&t.ptAns.answer!=='NG');
-  }
-  return '<div class="cform">'
-    +'<div class="lb">予定名(任意) 例:打ち合わせ</div><input type="text" class="c-title" maxlength="60">'
-    +'<div class="lb">確定する時間帯(複数選べます)</div>'
-    +'<div class="row">'+cand.map(function(x){
-      return '<label><input type="checkbox" class="c-slot" value="'+x.k+'"'+(agreed(st(d,x.k))?' checked':'')+'>'+x.label+'</label>';
-    }).join('')+'</div>'
-    +'<div class="lb">メモ(任意) 例:場所・持ち物</div><input type="text" class="c-memo" maxlength="200">'
-    +'<div class="btns"><button class="btn" data-act="confirmdo">確定する</button><button class="btn ghost" data-act="confirmcancel">やめる</button></div></div>';
+  var both=SLOTS.filter(function(x,i){return sts[i].kind==='both';});
+  if(!both.length)return '';
+  return '<button class="confirm-open" data-act="confirmboth">確定('+both.map(function(x){return x.label;}).join('・')+')</button>';
 }
 
 /* ---------- 操作 ---------- */
@@ -650,13 +641,13 @@ function saveAnswers(d,items){
 function cardComment(slot){var el=$('#panel .cmt[data-slot="'+slot+'"]');return el?el.value:'';}
 
 function open_(d){
-  openDate=d; confirming=null;
+  openDate=d;
   var p=d.split('-').map(Number); view={y:p[0],m:p[1]-1};
   $('#sheet').classList.remove('hidden');
   renderAll();
   $('#panel').scrollTop=0;
 }
-function close_(){openDate=null;confirming=null;$('#sheet').classList.add('hidden');}
+function close_(){openDate=null;$('#sheet').classList.add('hidden');}
 
 document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]'); if(!el||el.disabled)return;
@@ -691,20 +682,16 @@ document.addEventListener('click',function(e){
       });
       saveAnswers(d,items); break;
     }
-    case 'confirmopen': confirming=true; renderSheet(); var ti=$('#panel .c-title'); if(ti)ti.focus(); break;
-    case 'confirmcancel': confirming=false; renderSheet(); break;
-    case 'confirmdo': {
-      var title=$('#panel .c-title').value, memo=$('#panel .c-memo').value;
-      var slots=[].slice.call(document.querySelectorAll('#panel .c-slot:checked')).map(function(x){return x.value;});
-      if(!slots.length){toast('時間帯を選んでください',true);break;}
-      confirming=null;
-      enqueue(function(){return call('apiConfirm',d,slots,title,memo);});
+    case 'confirmboth': {
+      var bs=SLOTS.filter(function(x){return st(d,x.k).kind==='both';}).map(function(x){return x.k;});
+      if(!bs.length)break;
+      enqueue(function(){return call('apiConfirm',d,bs,'','');});
       toast('確定しました'); break;
     }
     case 'unconfirm': {
       var c=idx.conf[d+'|'+slot]; if(!c)break;
       var group=SLOTS.filter(function(s){var x=idx.conf[d+'|'+s.k];return x&&x.title===c.title&&x.memo===c.memo;}).map(function(s){return s.k;});
-      if(!confirm('この確定を取り消しますか?'))break;
+      if(!confirm('この確定を取り消しますか?相手の回答も、未回答に戻ります。'))break;
       enqueue(function(){return call('apiUnconfirm',d,group);}); break;
     }
   }
