@@ -158,10 +158,11 @@ input[type=text]:focus,input[type=password]:focus{outline:2px solid var(--pri);o
 .btn.ghost{background:var(--card);color:var(--ink);border-color:var(--line)}
 .btn:disabled{opacity:.6}
 .lnk{border:0;background:none;color:var(--muted);text-decoration:underline;padding:4px 0;font-size:12.5px}
-.confirm-open{margin-top:8px;border:1px solid var(--pri);background:var(--card);color:var(--pri);
+.confirm-open{margin-top:6px;border:1px solid var(--pri);background:var(--card);color:var(--pri);
   border-radius:3px;padding:7px 12px;font-weight:700;width:100%}
 @media (prefers-color-scheme: dark){ .confirm-open{color:var(--ink)} }
 .cform{margin-top:8px;display:flex;flex-direction:column;gap:8px;background:var(--soft);padding:10px;border:1px solid var(--line)}
+.cform .lb{font-size:12px;color:var(--muted);margin-bottom:-4px}
 .cform .row{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
 .cform label{display:inline-flex;align-items:center;gap:5px}
 .cform .btns{display:flex;gap:8px}
@@ -572,6 +573,7 @@ function renderSheet(){
         +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+LAB[v]+'</button>';}).join('')+'</div>';
     }
     SLOTS.forEach(function(s,i){if(sts[i].kind)h+=cardHtml(d,s,sts[i],ro);});
+    if(!ro)h+=confirmHtml(d,sts);
   }
   h+='</section>';
   $('#panel').innerHTML=h;
@@ -608,20 +610,26 @@ function cardHtml(d,s,t,ro){
       h+='<p class="note wait">'+esc(pt.name)+'の回答待ちです。</p>';
     }
   }
-  if(!ro){
-    if(confirming===s.k){
-      var cand=SLOTS.filter(function(x){var tx=st(d,x.k);return tx.kind&&tx.kind!=='conf';});
-      h+='<div class="cform"><input type="text" class="c-title" maxlength="60" placeholder="タイトル(例:打ち合わせ)">'
-        +'<div class="row">'+cand.map(function(x){
-          return '<label><input type="checkbox" class="c-slot" value="'+x.k+'"'+(x.k===s.k?' checked':'')+'>'+x.label+'</label>';
-        }).join('')+'</div>'
-        +'<input type="text" class="c-memo" maxlength="200" placeholder="メモ(場所など・任意)">'
-        +'<div class="btns"><button class="btn" data-act="confirmdo">確定する</button><button class="btn ghost" data-act="confirmcancel">やめる</button></div></div>';
-    }else{
-      h+='<button class="confirm-open" data-act="confirmopen" data-slot="'+s.k+'">この枠で確定</button>';
-    }
-  }
   return h+'</div>';
+}
+
+// 確定は、1日につき最後に1つだけ。どの時間帯を確定するかは、ここで選ぶ
+function confirmHtml(d,sts){
+  var cand=SLOTS.filter(function(x,i){return sts[i].kind&&sts[i].kind!=='conf';});
+  if(!cand.length)return '';
+  if(!confirming)return '<button class="confirm-open" data-act="confirmopen">確定</button>';
+  // 2人の都合が合っている枠(◎、または回答が ○/△)を、最初からチェックしておく
+  function agreed(t){
+    return t.kind==='both'||(t.kind==='pt'&&t.myAns&&t.myAns.answer!=='NG')||(t.kind==='me'&&t.ptAns&&t.ptAns.answer!=='NG');
+  }
+  return '<div class="cform">'
+    +'<div class="lb">予定名(任意) 例:打ち合わせ</div><input type="text" class="c-title" maxlength="60">'
+    +'<div class="lb">確定する時間帯(複数選べます)</div>'
+    +'<div class="row">'+cand.map(function(x){
+      return '<label><input type="checkbox" class="c-slot" value="'+x.k+'"'+(agreed(st(d,x.k))?' checked':'')+'>'+x.label+'</label>';
+    }).join('')+'</div>'
+    +'<div class="lb">メモ(任意) 例:場所・持ち物</div><input type="text" class="c-memo" maxlength="200">'
+    +'<div class="btns"><button class="btn" data-act="confirmdo">確定する</button><button class="btn ghost" data-act="confirmcancel">やめる</button></div></div>';
 }
 
 /* ---------- 操作 ---------- */
@@ -683,8 +691,8 @@ document.addEventListener('click',function(e){
       });
       saveAnswers(d,items); break;
     }
-    case 'confirmopen': confirming=slot; renderSheet(); var ti=$('#panel .c-title'); if(ti)ti.focus(); break;
-    case 'confirmcancel': confirming=null; renderSheet(); break;
+    case 'confirmopen': confirming=true; renderSheet(); var ti=$('#panel .c-title'); if(ti)ti.focus(); break;
+    case 'confirmcancel': confirming=false; renderSheet(); break;
     case 'confirmdo': {
       var title=$('#panel .c-title').value, memo=$('#panel .c-memo').value;
       var slots=[].slice.call(document.querySelectorAll('#panel .c-slot:checked')).map(function(x){return x.value;});
