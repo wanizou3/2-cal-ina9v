@@ -179,6 +179,9 @@ input[type=text]:focus,input[type=password]:focus,input[type=time]:focus,textare
 .fld.two{display:flex;gap:10px}
 .fld.two>div{flex:1}
 textarea{resize:vertical;min-height:70px}
+select{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:3px;padding:7px 9px;font:inherit;font-size:14px}
+select:focus{outline:2px solid var(--pri);outline-offset:-1px}
+.ocl select,.ocl input{flex:1;min-width:0}
 .dsave{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .upd{font-size:11.5px;color:var(--muted)}
 .msgs{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;max-height:240px;overflow:auto}
@@ -611,8 +614,17 @@ function renderSheet(){
   if(mine.length){
     h+='<div class="ocmts">'+mine.map(function(s){
       var t=st(d,s.k);
-      return '<label class="ocl"><span>'+s.label+'</span><input type="text" class="ocmt" data-slot="'+s.k+'" maxlength="100" placeholder="コメント(任意) 例:渋谷周辺なら"'
-        +' value="'+esc(t.myComment)+'"'+((ro||t.conf)?' disabled':'')+'></label>';
+      var dis=(ro||t.conf)?' disabled':'';
+      if(s.k==='LUNCH'){ // ランチは「どのへんか」を3択で選ぶ
+        var opts=['自宅周辺','会社周辺','その他'];
+        if(t.myComment&&opts.indexOf(t.myComment)<0)opts.push(t.myComment);   // 以前の自由入力が残っていても消さない
+        return '<label class="ocl"><span>'+s.label+'</span><select class="ocmt" data-slot="LUNCH"'+dis+'>'
+          +'<option value="">場所を選択(任意)</option>'
+          +opts.map(function(o){return '<option value="'+esc(o)+'"'+(o===t.myComment?' selected':'')+'>'+esc(o)+'</option>';}).join('')
+          +'</select></label>';
+      }
+      return '<label class="ocl"><span>'+s.label+'</span><input type="text" class="ocmt" data-slot="'+s.k+'" maxlength="100" placeholder="コメント(任意) 例:名古屋駅周辺なら"'
+        +' value="'+esc(t.myComment)+'"'+dis+'></label>';
     }).join('')+'</div>';
   }
   h+='</section>';
@@ -700,7 +712,7 @@ function renderDetail(){
   h+='<section><h3>やりとり</h3><div class="msgs">'+(ms.length?ms.map(function(m){
     return '<div class="msg1'+(m.by===S.me.id?' mine':'')+'"><div class="who1">'+esc(nm(m.by))+' '+esc(fmtAt(m.at))+'</div>'+esc(m.text)+'</div>';
   }).join(''):'<div class="empty-note">まだメッセージはありません</div>')+'</div>'
-    +'<div class="msgin"><input type="text" class="d-msg" maxlength="300" placeholder="メッセージ"'+dis+'><button class="btn" data-act="sendmsg"'+dis+'>送信</button></div></section>';
+    +'<div class="msgin"><input type="text" class="d-msg" maxlength="300" placeholder="メッセージ" value="'+(ms.length?'':'詳細決めよ〜。')+'"'+dis+'><button class="btn" data-act="sendmsg"'+dis+'>送信</button></div></section>';
   $('#panel').innerHTML=h;
 }
 
