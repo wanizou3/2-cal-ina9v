@@ -653,7 +653,7 @@ function cardHtml(d,s,t,ro){
     return '<div class="card conf"><div class="ch"><b>'+s.label+'</b><span class="hint">'+s.hint+'</span><span class="badge conf">確定</span></div>'
       +'<div class="ct">'+esc(cd?cd.title:c.title)+'</div>'
       +(cd&&cardSummary(cd)?'<div class="cm">'+esc(cardSummary(cd))+'</div>':(c.memo?'<div class="cm">'+esc(c.memo)+'</div>':''))
-      +(cd?'<button class="strong" data-act="opencard" data-card="'+esc(cd.id)+'">詳細カードを開く</button>':'')
+      +(cd?'<button class="strong" data-act="opencard" data-card="'+esc(cd.id)+'">詳細を決める</button>':'')
       +(ro?'':'<button class="lnk" data-act="unconfirm" data-slot="'+s.k+'">確定を取り消す</button>')+'</div>';
   }
   var badge={both:['both','2人とも空き'],pt:['pt',esc(pt.name)+'が提示'],me:['me','あなたが提示']}[t.kind];
