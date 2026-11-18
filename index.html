@@ -287,7 +287,8 @@ function showLogin(msg){
   $('#who').innerHTML='';
   $('#main').innerHTML='<div class="login"><div class="lock">🔒</div><h2>合言葉を入れてください</h2>'
     +'<p>2人だけの予定調整です</p>'
-    +'<input type="text" id="pcin" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="合言葉(8文字)">'
+    +'<input type="text" id="pcin" lang="ja" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="合言葉(8文字)">'
+    +'<button type="button" class="lnk" id="pctoggle"></button>'
     +'<label><input type="checkbox" id="pcsave" checked>この端末で覚える</label>'
     +'<button class="btn" id="pcgo">開く</button>'
     +'<div class="msg" id="pcmsg">'+esc(msg||'')+'</div></div>';
@@ -305,9 +306,23 @@ function showLogin(msg){
   $('#pcgo').addEventListener('click',go);
   // 文字は隠しつつ、日本語入力(漢字変換)もできるようにする。対応していないブラウザでは通常のパスワード欄にする
   var pin=$('#pcin');
-  var masked=window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'));
-  if(masked){pin.style.webkitTextSecurity='disc';pin.style.textSecurity='disc';}
-  else{pin.type='password';}
+  var canMask=window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'));
+  var hide=false; try{hide=localStorage.getItem('futari_hide')==='1';}catch(e){}
+  // 初期状態は「見える」。日本語(漢字・ひらがな)を入れるとき、何を打っているか分かるようにするため
+  function applyHide(){
+    if(hide){
+      if(canMask){pin.style.webkitTextSecurity='disc';pin.style.textSecurity='disc';}
+      else{pin.type='password';}
+    }else{
+      pin.style.webkitTextSecurity='none';pin.style.textSecurity='none';pin.type='text';
+    }
+    $('#pctoggle').textContent=hide?'👁 合言葉を表示する':'🙈 合言葉を隠す';
+  }
+  $('#pctoggle').addEventListener('click',function(){
+    hide=!hide; try{localStorage.setItem('futari_hide',hide?'1':'0');}catch(e){}
+    applyHide(); pin.focus();
+  });
+  applyHide();
   // 漢字変換の確定のEnterでは、ログインしない
   pin.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)go();});
 }
