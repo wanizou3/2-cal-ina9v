@@ -150,8 +150,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .ab.MAYBE.on{background:#b07a00;border-color:#b07a00;color:#fff}
 .ab.NG.on{background:#667085;border-color:#667085;color:#fff}
 .ab:disabled{opacity:.5}
-input[type=text],input[type=password]{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:3px;padding:7px 9px;font:inherit;font-size:14px}
-input[type=text]:focus,input[type=password]:focus{outline:2px solid var(--pri);outline-offset:-1px}
+input[type=text],input[type=password],input[type=time],textarea{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:3px;padding:7px 9px;font:inherit;font-size:14px}
+input[type=text]:focus,input[type=password]:focus,input[type=time]:focus,textarea:focus{outline:2px solid var(--pri);outline-offset:-1px}
 .bulk{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
 .bulk button{border:1px solid var(--line);background:var(--card);border-radius:3px;padding:4px 10px;font-weight:600}
 .btn{border:1px solid var(--pri);background:var(--pri);color:var(--pri-ink);border-radius:3px;padding:8px 16px;font-weight:700;font-size:13.5px}
@@ -164,6 +164,37 @@ input[type=text]:focus,input[type=password]:focus{outline:2px solid var(--pri);o
 .ct{font-weight:700;font-size:14.5px;margin-top:4px}
 .cm{font-size:13px;color:var(--muted)}
 
+.sum.ready{border-left-color:var(--me);background:var(--me-bg)}
+.sum.ready button{background:var(--me)}
+.day.ready::before{content:"";position:absolute;top:5px;right:15px;width:7px;height:7px;background:var(--me)}
+.cbox{margin-top:8px;border:1px solid var(--line);background:var(--soft);padding:9px 10px}
+.cbox .lb,.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.cbox .row{display:flex;gap:14px;flex-wrap:wrap;font-size:13.5px;margin-bottom:6px}
+.cbox label{display:inline-flex;align-items:center;gap:5px}
+.cbox .confirm-open{margin-top:2px;background:var(--pri);color:var(--pri-ink)}
+.strong{color:var(--pri);font-weight:700;text-decoration:none;border:1px solid var(--pri);padding:5px 10px;border-radius:3px;display:inline-block;margin:6px 8px 0 0}
+@media (prefers-color-scheme: dark){ .strong{color:var(--ink);border-color:var(--ink)} .cbox .confirm-open{color:#fff} }
+.x.wide{width:auto;padding:0 12px;font-size:13px}
+.fld{margin-bottom:10px}
+.fld.two{display:flex;gap:10px}
+.fld.two>div{flex:1}
+textarea{resize:vertical;min-height:70px}
+.dsave{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.upd{font-size:11.5px;color:var(--muted)}
+.msgs{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;max-height:240px;overflow:auto}
+.msg1{border:1px solid var(--line);background:var(--card);padding:6px 9px;font-size:13px}
+.msg1.mine{background:var(--me-bg);border-color:var(--me-bg)}
+.msg1 .who1{font-size:11px;color:var(--muted);margin-bottom:1px}
+.msgin{display:flex;gap:6px}
+.msgin input{flex:1}
+#popup{z-index:40;align-items:center}
+#popbox{border-radius:6px;max-width:440px}
+#popbox h3{margin:0 0 8px;font-size:15px;padding-bottom:6px;border-bottom:2px solid var(--pri)}
+#popbox ul{list-style:none;margin:0 0 12px;padding:0;max-height:50vh;overflow:auto}
+#popbox li{padding:8px 4px;border-top:1px solid var(--line);font-size:13.5px;cursor:pointer}
+#popbox li:first-child{border-top:0}
+#popbox li small{display:block;color:var(--muted);font-size:11.5px}
+#popbox .btn{width:100%}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1f2933;color:#fff;padding:9px 16px;
   border-radius:3px;font-size:13px;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
 #toast.show{opacity:1} #toast.err{background:#b42318}
@@ -191,6 +222,10 @@ input[type=text]:focus,input[type=password]:focus{outline:2px solid var(--pri);o
 <div id="sheet" class="sheet hidden">
   <div class="backdrop" data-act="close"></div>
   <div class="panel" id="panel"></div>
+</div>
+<div id="popup" class="sheet hidden">
+  <div class="backdrop" data-act="popclose"></div>
+  <div class="panel" id="popbox"></div>
 </div>
 <div id="toast"></div>
 
@@ -263,9 +298,9 @@ function dateLabel(s){
 }
 function shortLabel(s){var p=s.split('-').map(Number);return p[1]+'/'+p[2]+'('+WD[new Date(p[0],p[1]-1,p[2]).getDay()]+')';}
 
-var S=null, D={offers:[],answers:[],confirms:[]}, idx={};
+var S=null, D={offers:[],answers:[],confirms:[],cards:[],messages:[]}, idx={};
 var view={y:now.getFullYear(),m:now.getMonth()};
-var openDate=null;
+var openDate=null, viewCard=null;
 
 /* ---------- パスワード(タブを閉じると消える sessionStorage にだけ置く) ---------- */
 var pc='';
@@ -336,7 +371,7 @@ function reload(){
 
 /* ---------- ログイン画面 ---------- */
 function showLogin(msg){
-  close_();
+  close_(); hidePopup();
   $('#who').innerHTML='';
   $('#main').innerHTML='<div class="login"><h2>ログイン</h2>'
     +'<p>パスワードを入力してください</p>'
@@ -397,10 +432,13 @@ setInterval(checkIdle,15000);
 
 /* ---------- データ索引 ---------- */
 function build(){
-  idx={offer:{},ans:{},conf:{}};
+  idx={offer:{},ans:{},conf:{},card:{},msgs:{}};
   D.offers.forEach(function(o){idx.offer[o.date+'|'+o.slot+'|'+o.by]=o;});
   D.answers.forEach(function(a){idx.ans[a.date+'|'+a.slot+'|'+a.by]=a;});
   D.confirms.forEach(function(c){idx.conf[c.date+'|'+c.slot]=c;});
+  (D.cards||[]).forEach(function(c){idx.card[c.id]=c;});
+  (D.messages||[]).forEach(function(m){(idx.msgs[m.card]=idx.msgs[m.card]||[]).push(m);});
+  Object.keys(idx.msgs).forEach(function(k){idx.msgs[k].sort(function(a,b){return a.at<b.at?-1:1;});});
 }
 function st(d,s){
   var k=d+'|'+s, me=S.me.id, pt=S.partner.id;
@@ -412,7 +450,8 @@ function st(d,s){
   else if(mo&&po){kind='both';sym='◎';}
   else if(po){kind='pt';sym=myAns?SYM[myAns.answer]:'!';}
   else if(mo){kind='me';sym=ptAns?SYM[ptAns.answer]:'…';}
-  return {kind:kind,sym:sym,conf:conf,mo:mo,po:po,myAns:myAns,ptAns:ptAns,
+  var ready=(kind==='both')||(kind==='me'&&!!ptAns&&ptAns.answer==='OK');  // 確定できる枠
+  return {kind:kind,sym:sym,ready:ready,conf:conf,mo:mo,po:po,myAns:myAns,ptAns:ptAns,
           myComment:mO?(mO.comment||''):'',ptComment:pO?(pO.comment||''):''};
 }
 
@@ -433,18 +472,10 @@ function localSetOffers(date,slots,comments){
   build();
 }
 function localSetAnswers(date,items){
-  var me=S.me.id, pt=S.partner.id;
+  var me=S.me.id;
   items.forEach(function(it){
     D.answers=D.answers.filter(function(a){return !(a.date===date&&a.slot===it.slot&&a.by===me);});
-    if(!it.answer)return;
-    D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||''});
-    // ○(OK)で答えた枠は、自動で確定になる
-    var po=idx.offer[date+'|'+it.slot+'|'+pt];
-    if(it.answer==='OK'&&po&&!idx.conf[date+'|'+it.slot]){
-      var memo=[po.comment,String(it.comment||'').trim().slice(0,100)].filter(function(x){return x;}).join(' / ');
-      D.confirms.push({date:date,slot:it.slot,title:'予定',memo:memo,by:me});
-    }
-    build();
+    if(it.answer)D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||'',at:''});
   });
   build();
 }
@@ -467,23 +498,31 @@ function renderAll(){
   h+=confirmedListHtml();
   $('#main').innerHTML=h;
   if(openDate)renderSheet();
+  checkPopup();
 }
 
 function summaryHtml(){
-  var need=[],wait=0;
+  var need=[],wait=0,readyDates=[],seen={};
   D.offers.forEach(function(o){
     if(o.date<todayStr)return;
     var t=st(o.date,o.slot);
     if(t.kind==='pt'&&!t.myAns)need.push(o.date);
     if(t.kind==='me'&&!t.ptAns)wait++;
+    var key=o.date+'|'+o.slot;
+    if(t.ready&&!seen[key]){seen[key]=1;readyDates.push(o.date);}
   });
-  need.sort();
+  need.sort(); readyDates.sort();
   var h='<div class="summary">';
+  if(readyDates.length){
+    h+='<div class="sum ready"><span><b>'+readyDates.length+'</b> 枠、確定できます(○の回答あり / 2人とも空き)</span>'
+      +'<button data-act="gonext" data-date="'+readyDates[0]+'">確定する</button></div>';
+  }
   if(need.length){
     h+='<div class="sum need"><span>'+esc(S.partner.name)+'の空きに <b>'+need.length+'</b> 枠、未回答があります</span>'
       +'<button data-act="gonext" data-date="'+need[0]+'">回答する</button></div>';
-  }else{
-    h+='<div class="sum"><span>未回答はありません</span></div>';
+  }
+  if(!readyDates.length&&!need.length){
+    h+='<div class="sum"><span>未回答・確定待ちはありません</span></div>';
   }
   h+='<div class="sum"><span>あなたの提示で回答待ち <b>'+wait+'</b> 枠</span></div></div>';
   return h;
@@ -495,14 +534,15 @@ function calHtml(){
   WD.forEach(function(w,i){h+='<div class="wd'+(i===0?' sun':'')+'">'+w+'</div>';});
   for(var i=0;i<first;i++)h+='<div class="day blank"></div>';
   for(var d=1;d<=dim;d++){
-    var s=ds(y,m,d), dow=(first+d-1)%7, needDay=false, hn=holName(s);
+    var s=ds(y,m,d), dow=(first+d-1)%7, needDay=false, readyDay=false, hn=holName(s);
     var pills=SLOTS.map(function(sl){
       var t=st(s,sl.k);
       if(t.kind==='pt'&&!t.myAns&&s>=todayStr)needDay=true;
+      if(t.ready&&s>=todayStr)readyDay=true;
       return t.kind?'<span class="pill k-'+t.kind+'"><b>'+sl.short+'</b><i>'+t.sym+'</i></span>'
                    :'<span class="pill empty"><b>'+sl.short+'</b></span>';
     }).join('');
-    h+='<button class="day'+(s<todayStr?' past':'')+(s===todayStr?' today':'')+(dow===0?' sun':'')+(hn?' hol':'')+(needDay?' need':'')
+    h+='<button class="day'+(s<todayStr?' past':'')+(s===todayStr?' today':'')+(dow===0?' sun':'')+(hn?' hol':'')+(needDay?' need':'')+(readyDay?' ready':'')
       +'" data-act="open" data-date="'+s+'"'+(hn?' title="'+esc(hn)+'"':'')+'><span class="n"><b>'+d+'</b>'+(hn?'<small>'+esc(hn)+'</small>':'')+'</span>'+pills+'</button>';
   }
   return h+'</div>';
@@ -520,25 +560,37 @@ function slotsLabel(keys){
   return parts.join('・');
 }
 
+function cardSummary(cd){
+  if(!cd)return '';
+  var time=cd.start?(cd.start+(cd.end?'〜'+cd.end:'')):'';
+  return [time,cd.place].filter(function(x){return x;}).join(' / ');
+}
 function confirmedListHtml(){
   var groups={};
   D.confirms.forEach(function(c){
     if(c.date<todayStr)return;
-    var k=c.date+'|'+c.title+'|'+c.memo;
-    (groups[k]=groups[k]||{date:c.date,title:c.title,memo:c.memo,slots:[]}).slots.push(c.slot);
+    var k=c.card?('c|'+c.card):(c.date+'|'+c.title+'|'+c.memo);
+    var g=groups[k]=groups[k]||{date:c.date,card:c.card,title:c.title,memo:c.memo,slots:[]};
+    g.slots.push(c.slot);
   });
   var arr=Object.keys(groups).map(function(k){return groups[k];}).sort(function(a,b){return a.date<b.date?-1:1;});
   var h='<div class="listcard"><h3>確定した予定</h3>';
   if(!arr.length)return h+'<div class="empty-note">確定した予定はありません</div></div>';
   h+='<ul>'+arr.map(function(g){
-    return '<li data-act="open" data-date="'+g.date+'"><span class="d">'+shortLabel(g.date)+'</span>'
-      +'<span class="t">'+esc(g.title)+(g.memo?'<div class="s">'+esc(g.memo)+'</div>':'')+'</span><span class="s">'+slotsLabel(g.slots)+'</span></li>';
+    var cd=g.card&&idx.card[g.card];
+    var sub=cd?cardSummary(cd):'';
+    var undecided=cd&&!cd.start&&!cd.place;
+    return '<li data-act="'+(cd?'opencard':'open')+'" data-date="'+g.date+'"'+(cd?' data-card="'+esc(cd.id)+'"':'')+'><span class="d">'+shortLabel(g.date)+'</span>'
+      +'<span class="t">'+esc(cd?cd.title:g.title)+(undecided?' <span class="s">(詳細未定)</span>':'')
+      +(sub?'<div class="s">'+esc(sub)+'</div>':(g.memo?'<div class="s">'+esc(g.memo)+'</div>':''))+'</span><span class="s">'+slotsLabel(g.slots)+'</span></li>';
   }).join('')+'</ul></div>';
   return h;
 }
 
 /* ---------- 描画: 日ごとのシート ---------- */
 function renderSheet(){
+  if(viewCard&&idx.card[viewCard]){renderDetail();return;}
+  viewCard=null;
   var d=openDate, ro=d<todayStr, pt=S.partner, hn=holName(d);
   var sts=SLOTS.map(function(s){return st(d,s.k);});
   var allMine=DAYSLOTS.every(function(s){return st(d,s.k).mo;});
@@ -573,7 +625,7 @@ function renderSheet(){
     var ptOnly=SLOTS.filter(function(s,i){return sts[i].kind==='pt';});
     if(ptOnly.length>=2&&!ro){
       h+='<div class="bulk"><span>'+esc(pt.name)+'の空きに まとめて回答:</span>'
-        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+(v==='OK'?'OK(確定)':LAB[v])+'</button>';}).join('')+'</div>';
+        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+LAB[v]+'</button>';}).join('')+'</div>';
     }
     SLOTS.forEach(function(s,i){if(sts[i].kind)h+=cardHtml(d,s,sts[i],ro);});
     if(!ro)h+=confirmHtml(d,sts);
@@ -585,9 +637,11 @@ function renderSheet(){
 function cardHtml(d,s,t,ro){
   var pt=S.partner;
   if(t.kind==='conf'){
-    var c=t.conf;
+    var c=t.conf, cd=c.card&&idx.card[c.card];
     return '<div class="card conf"><div class="ch"><b>'+s.label+'</b><span class="hint">'+s.hint+'</span><span class="badge conf">確定</span></div>'
-      +'<div class="ct">'+esc(c.title)+'</div>'+(c.memo?'<div class="cm">'+esc(c.memo)+'</div>':'')
+      +'<div class="ct">'+esc(cd?cd.title:c.title)+'</div>'
+      +(cd&&cardSummary(cd)?'<div class="cm">'+esc(cardSummary(cd))+'</div>':(c.memo?'<div class="cm">'+esc(c.memo)+'</div>':''))
+      +(cd?'<button class="strong" data-act="opencard" data-card="'+esc(cd.id)+'">詳細カードを開く</button>':'')
       +(ro?'':'<button class="lnk" data-act="unconfirm" data-slot="'+s.k+'">確定を取り消す</button>')+'</div>';
   }
   var badge={both:['both','2人とも空き'],pt:['pt',esc(pt.name)+'が提示'],me:['me','あなたが提示']}[t.kind];
@@ -597,17 +651,17 @@ function cardHtml(d,s,t,ro){
     h+='<div class="cmtshow">'+esc(pt.name)+'のコメント: '+esc(t.ptComment)+'</div>';
   }
   if(t.kind==='both'){
-    h+='<p class="note OK">2人とも空いています。下の「確定」で決定できます。</p>';
+    h+='<p class="note OK">2人とも空いています。下の「確定」で確定できます。</p>';
   }else if(t.kind==='pt'){
-    h+='<p class="note">'+esc(pt.name)+'から空きのリクエストです。○ OK を押すと、この枠で確定します。</p><div class="ans">'
+    h+='<p class="note">'+esc(pt.name)+'から空きのリクエストです。ご都合は?</p><div class="ans">'
       +['OK','MAYBE','NG'].map(function(v){
-        return '<button class="ab '+v+(t.myAns&&t.myAns.answer===v?' on':'')+'" data-act="ans" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+(v==='OK'?'OK(確定)':LAB[v])+'</button>';
+        return '<button class="ab '+v+(t.myAns&&t.myAns.answer===v?' on':'')+'" data-act="ans" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+LAB[v]+'</button>';
       }).join('')+'</div>'
       +'<input type="text" class="cmt" data-slot="'+s.k+'" maxlength="100" placeholder="コメント(任意) 例:19時以降なら"'
       +' value="'+esc(t.myAns?t.myAns.comment:'')+'"'+(ro?' disabled':'')+'>';
   }else if(t.kind==='me'){
     if(t.ptAns){
-      h+='<p class="note '+t.ptAns.answer+'">'+esc(pt.name)+'の回答: <b>'+SYM[t.ptAns.answer]+' '+LAB[t.ptAns.answer]+'</b></p>'
+      h+='<p class="note '+t.ptAns.answer+'">'+esc(pt.name)+'の回答: <b>'+SYM[t.ptAns.answer]+' '+LAB[t.ptAns.answer]+'</b>'+(t.ptAns.answer==='OK'?'(下の「確定」で確定できます)':'')+'</p>'
         +(t.ptAns.comment?'<div class="cmtshow">コメント: '+esc(t.ptAns.comment)+'</div>':'');
     }else{
       h+='<p class="note wait">'+esc(pt.name)+'の回答待ちです。</p>';
@@ -616,11 +670,79 @@ function cardHtml(d,s,t,ro){
   return h+'</div>';
 }
 
-// 相手の回答(○)で確定するので、手動の「確定」は、2人とも空き(◎)の枠だけ。1日につき1つ
+// 確定できるのは、自分が出した空きに相手が ○ と答えた枠、または2人とも空き(◎)の枠。1日につきボタンは1つ
 function confirmHtml(d,sts){
-  var both=SLOTS.filter(function(x,i){return sts[i].kind==='both';});
-  if(!both.length)return '';
-  return '<button class="confirm-open" data-act="confirmboth">確定('+both.map(function(x){return x.label;}).join('・')+')</button>';
+  var ready=SLOTS.filter(function(x,i){return sts[i].ready;});
+  if(!ready.length)return '';
+  return '<div class="cbox"><div class="lb">確定する時間帯</div><div class="row">'
+    +ready.map(function(x){return '<label><input type="checkbox" class="c-slot" value="'+x.k+'" checked>'+x.label+'</label>';}).join('')
+    +'</div><button class="confirm-open" data-act="confirmdo">確定</button></div>';
+}
+
+/* ---------- 詳細カード ---------- */
+function nm(id){return id===S.me.id?S.me.name:(id===S.partner.id?S.partner.name:id);}
+function fmtAt(a){var m=/(\d+)-(\d+)-(\d+) (\d+:\d+)/.exec(a||'');return m?Number(m[2])+'/'+Number(m[3])+' '+m[4]:'';}
+function renderDetail(){
+  var cd=idx.card[viewCard], ro=openDate<todayStr, dis=ro?' disabled':'';
+  var keys=D.confirms.filter(function(c){return c.card===viewCard;}).map(function(c){return c.slot;});
+  var h='<div class="sh-head"><div><div class="sh-date">'+dateLabel(cd.date)+'</div>'
+    +'<div class="sh-sub muted">'+esc(slotsLabel(keys))+' / 詳細カード</div></div>'
+    +'<button class="x wide" data-act="closecard">戻る</button></div>';
+  h+='<section><h3>予定の詳細<small>2人とも編集できます</small></h3>'
+    +'<div class="fld"><label>予定名</label><input type="text" class="d-title" maxlength="60" value="'+esc(cd.title)+'"'+dis+'></div>'
+    +'<div class="fld two"><div><label>開始</label><input type="time" class="d-start" value="'+esc(cd.start)+'"'+dis+'></div>'
+    +'<div><label>終了</label><input type="time" class="d-end" value="'+esc(cd.end)+'"'+dis+'></div></div>'
+    +'<div class="fld"><label>場所</label><input type="text" class="d-place" maxlength="100" value="'+esc(cd.place)+'"'+dis+'></div>'
+    +'<div class="fld"><label>メモ</label><textarea class="d-memo" rows="3" maxlength="500"'+dis+'>'+esc(cd.memo)+'</textarea></div>'
+    +'<div class="dsave"><button class="btn" data-act="savecard"'+dis+'>保存</button>'
+    +'<span class="upd">最終更新: '+esc(nm(cd.by))+' '+esc(fmtAt(cd.at))+'</span></div></section>';
+  var ms=idx.msgs[viewCard]||[];
+  h+='<section><h3>やりとり</h3><div class="msgs">'+(ms.length?ms.map(function(m){
+    return '<div class="msg1'+(m.by===S.me.id?' mine':'')+'"><div class="who1">'+esc(nm(m.by))+' '+esc(fmtAt(m.at))+'</div>'+esc(m.text)+'</div>';
+  }).join(''):'<div class="empty-note">まだメッセージはありません</div>')+'</div>'
+    +'<div class="msgin"><input type="text" class="d-msg" maxlength="300" placeholder="メッセージ"'+dis+'><button class="btn" data-act="sendmsg"'+dis+'>送信</button></div></section>';
+  $('#panel').innerHTML=h;
+}
+
+/* ---------- お知らせ(ポップアップ) ---------- */
+var popupOpen=false, popupMax='';
+function seenKey(){return 'yotei_seen_'+S.me.id;}
+function getSeen(){try{return localStorage.getItem(seenKey())||'';}catch(e){return '';}}
+function setSeen(v){try{if(v)localStorage.setItem(seenKey(),v);}catch(e){}}
+function slotLabelOf(k){return SLOTS.filter(function(s){return s.k===k;})[0].label;}
+function newEvents(){
+  var seen=getSeen(), me=S.me.id, pt=S.partner.id, pn=S.partner.name, ev=[];
+  D.offers.forEach(function(o){
+    if(o.by===pt&&o.date>=todayStr&&o.at&&o.at>seen)
+      ev.push({at:o.at,date:o.date,text:pn+'から空きのリクエスト',sub:shortLabel(o.date)+' '+slotLabelOf(o.slot)});
+  });
+  D.answers.forEach(function(a){
+    if(a.by===pt&&a.date>=todayStr&&a.at&&a.at>seen&&idx.offer[a.date+'|'+a.slot+'|'+me])
+      ev.push({at:a.at,date:a.date,text:pn+'が '+SYM[a.answer]+' '+LAB[a.answer]+' と回答'+(a.answer==='OK'?'(確定できます)':''),
+               sub:shortLabel(a.date)+' '+slotLabelOf(a.slot)+(a.comment?' / '+a.comment:'')});
+  });
+  D.confirms.forEach(function(c){
+    if(c.by===pt&&c.date>=todayStr&&c.at&&c.at>seen)
+      ev.push({at:c.at,date:c.date,text:pn+'が確定しました(詳細カードを確認)',sub:shortLabel(c.date)+' '+slotLabelOf(c.slot)});
+  });
+  ev.sort(function(a,b){return a.at<b.at?-1:1;});
+  return ev;
+}
+function showPopup(ev){
+  popupOpen=true; popupMax=ev[ev.length-1].at;
+  var shown=ev.slice(-8).reverse();
+  $('#popbox').innerHTML='<h3>お知らせ</h3><ul>'+shown.map(function(e){
+    return '<li data-act="popopen" data-date="'+e.date+'">'+esc(e.text)+'<small>'+esc(e.sub)+'</small></li>';
+  }).join('')+'</ul>'+(ev.length>8?'<div class="empty-note">ほか '+(ev.length-8)+' 件</div>':'')
+    +'<button class="btn" data-act="popclose">確認</button>';
+  $('#popup').classList.remove('hidden');
+}
+function hidePopup(){popupOpen=false;$('#popup').classList.add('hidden');}
+function dismissPopup(){setSeen(popupMax);hidePopup();}
+function checkPopup(){
+  if(!S||popupOpen||openDate)return;
+  var ev=newEvents();
+  if(ev.length)showPopup(ev);
 }
 
 /* ---------- 操作 ---------- */
@@ -641,13 +763,13 @@ function saveAnswers(d,items){
 function cardComment(slot){var el=$('#panel .cmt[data-slot="'+slot+'"]');return el?el.value:'';}
 
 function open_(d){
-  openDate=d;
+  openDate=d; viewCard=null;
   var p=d.split('-').map(Number); view={y:p[0],m:p[1]-1};
   $('#sheet').classList.remove('hidden');
   renderAll();
   $('#panel').scrollTop=0;
 }
-function close_(){openDate=null;$('#sheet').classList.add('hidden');}
+function close_(){openDate=null;viewCard=null;$('#sheet').classList.add('hidden');}
 
 document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]'); if(!el||el.disabled)return;
@@ -682,16 +804,37 @@ document.addEventListener('click',function(e){
       });
       saveAnswers(d,items); break;
     }
-    case 'confirmboth': {
-      var bs=SLOTS.filter(function(x){return st(d,x.k).kind==='both';}).map(function(x){return x.k;});
-      if(!bs.length)break;
-      enqueue(function(){return call('apiConfirm',d,bs,'','');});
-      toast('確定しました'); break;
+    case 'confirmdo': {
+      var cslots=[].slice.call(document.querySelectorAll('#panel .c-slot:checked')).map(function(x){return x.value;});
+      if(!cslots.length){toast('確定する時間帯を選んでください',true);break;}
+      enqueue(function(){return call('apiConfirm',d,cslots);});
+      toast('確定しました。詳細カードを作成します'); break;
     }
+    case 'opencard': {
+      var cid=el.getAttribute('data-card');
+      if(date&&date!==openDate)open_(date);
+      viewCard=cid; renderSheet(); $('#panel').scrollTop=0; break;
+    }
+    case 'closecard': viewCard=null; renderSheet(); break;
+    case 'savecard': {
+      var f={title:$('#panel .d-title').value,start:$('#panel .d-start').value,end:$('#panel .d-end').value,
+             place:$('#panel .d-place').value,memo:$('#panel .d-memo').value};
+      var cardId=viewCard;
+      enqueue(function(){return call('apiSaveCard',cardId,f);});
+      toast('保存しました'); break;
+    }
+    case 'sendmsg': {
+      var inp=$('#panel .d-msg'), text=inp?inp.value.trim():''; if(!text)break;
+      var cardId2=viewCard;
+      D.messages.push({card:cardId2,by:S.me.id,text:text.slice(0,300),at:''}); build(); renderSheet();
+      enqueue(function(){return call('apiAddMessage',cardId2,text);}); break;
+    }
+    case 'popopen': dismissPopup(); open_(date); break;
+    case 'popclose': dismissPopup(); break;
     case 'unconfirm': {
       var c=idx.conf[d+'|'+slot]; if(!c)break;
-      var group=SLOTS.filter(function(s){var x=idx.conf[d+'|'+s.k];return x&&x.title===c.title&&x.memo===c.memo;}).map(function(s){return s.k;});
-      if(!confirm('この確定を取り消しますか?相手の回答も、未回答に戻ります。'))break;
+      var group=SLOTS.filter(function(s){var x=idx.conf[d+'|'+s.k];return x&&(c.card?x.card===c.card:(x.title===c.title&&x.memo===c.memo));}).map(function(s){return s.k;});
+      if(!confirm('この確定を取り消しますか?詳細カードも消え、相手の回答も未回答に戻ります。'))break;
       enqueue(function(){return call('apiUnconfirm',d,group);}); break;
     }
   }
@@ -709,7 +852,10 @@ document.addEventListener('change',function(e){
     else toast('先に ○ △ × を選ぶと、コメントも一緒に送られます');
   }
 });
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openDate)close_();});
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(popupOpen)dismissPopup(); else if(openDate)close_();
+});
 
 var toastTimer;
 function toast(msg,isErr){
@@ -718,11 +864,11 @@ function toast(msg,isErr){
 }
 
 // 相手の更新を取り込む(シートを開いていない時だけ)。自動更新は「操作」には数えない
-setInterval(function(){if(!document.hidden&&!openDate&&pending===0&&S&&!checkIdle())reload();},30000);
+setInterval(function(){if(!document.hidden&&!openDate&&!popupOpen&&pending===0&&S&&!checkIdle())reload();},30000);
 document.addEventListener('visibilitychange',function(){
   if(document.hidden)return;
   if(checkIdle())return;
-  if(!openDate&&pending===0&&S)reload();
+  if(!openDate&&!popupOpen&&pending===0&&S)reload();
 });
 
 // 起動: タブ内で最近まで操作していた場合だけ、そのまま続きから。それ以外はログイン画面
