@@ -198,6 +198,12 @@ select:focus{outline:2px solid var(--pri);outline-offset:-1px}
 #popbox li:first-child{border-top:0}
 #popbox li small{display:block;color:var(--muted);font-size:11.5px}
 #popbox .btn{width:100%}
+.sendrow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.sst{font-size:12.5px;color:var(--muted)}
+.sst.sent{color:var(--ok);font-weight:600}
+.sst.warn{color:var(--maybe);font-weight:600}
+.upd2{font-size:11px;color:#b8c4d6;white-space:nowrap}
+.bulk .btn{padding:4px 12px;font-size:12.5px}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1f2933;color:#fff;padding:9px 16px;
   border-radius:3px;font-size:13px;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
 #toast.show{opacity:1} #toast.err{background:#b42318}
@@ -304,6 +310,9 @@ function shortLabel(s){var p=s.split('-').map(Number);return p[1]+'/'+p[2]+'('+W
 var S=null, D={offers:[],answers:[],confirms:[],cards:[],messages:[]}, idx={};
 var view={y:now.getFullYear(),m:now.getMonth()};
 var openDate=null, viewCard=null;
+var drafts={};            // 回答の「選んだけど、まだ送信していない」内容(日|枠 → {answer,comment})
+var dirtyDetail=false;    // 詳細カードに、保存・送信していない入力があるか
+var lastLoaded=0;         // 最後にサーバーから最新を取り込んだ時刻
 
 /* ---------- パスワード(タブを閉じると消える sessionStorage にだけ置く) ---------- */
 var pc='';
@@ -341,7 +350,7 @@ function enqueue(fn){
     pending--; showSaving();
     if(pending===0){
       if(latest==='reload'){reload();}
-      else if(latest){D=latest;build();renderAll();}
+      else if(latest){D=latest;lastLoaded=Date.now();build();renderAll();}
       latest=null;
     }
   });
@@ -358,7 +367,7 @@ function errMsg(e){
   return m;
 }
 function reload(){
-  return call('apiInit').then(function(r){S={me:r.me,partner:r.partner,title:r.title};D=r.data;build();renderAll();})
+  return call('apiInit').then(function(r){S={me:r.me,partner:r.partner,title:r.title};D=r.data;lastLoaded=Date.now();build();renderAll();})
     .catch(function(e){
       if(isAuthErr(e)){
         var m=errMsg(e);
@@ -386,7 +395,7 @@ function showLogin(msg){
     var v=$('#pcin').value; if(!v)return;
     pc=v; $('#pcmsg').textContent='確認中…'; $('#pcgo').disabled=true;
     call('apiInit').then(function(r){
-      S={me:r.me,partner:r.partner,title:r.title};D=r.data;build();renderAll();
+      S={me:r.me,partner:r.partner,title:r.title};D=r.data;lastLoaded=Date.now();build();renderAll();
       ssSet(PC_KEY,v); lastActive=Date.now(); lastSaved=0; touch();
     }).catch(function(e){
       pc=''; var b=$('#pcgo'); if(b)b.disabled=false;
@@ -415,7 +424,7 @@ function showLogin(msg){
   // 漢字変換の確定のEnterでは、ログインしない
   pin.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)go();});
 }
-function logout(msg){S=null;pc='';ssDel(PC_KEY);ssDel(LAST_KEY);showLogin(msg||'');}
+function logout(msg){S=null;pc='';drafts={};dirtyDetail=false;ssDel(PC_KEY);ssDel(LAST_KEY);showLogin(msg||'');}
 
 /* ---------- 自動ログアウト(操作がないまま一定時間たつと) ---------- */
 var lastActive=Date.now(), lastSaved=0;
@@ -478,7 +487,7 @@ function localSetAnswers(date,items){
   var me=S.me.id;
   items.forEach(function(it){
     D.answers=D.answers.filter(function(a){return !(a.date===date&&a.slot===it.slot&&a.by===me);});
-    if(it.answer)D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||'',at:''});
+    if(it.answer)D.answers.push({date:date,slot:it.slot,by:me,answer:it.answer,comment:it.comment||'',at:nowStr()});
   });
   build();
 }
@@ -487,7 +496,9 @@ function localSetAnswers(date,items){
 function renderAll(){
   if(!S)return;
   $('#title').textContent=S.title;
-  $('#who').innerHTML=esc(S.me.name)+' でログイン中 <button class="logout" data-act="logout">ログアウト</button>';
+  var lt=new Date(lastLoaded||Date.now());
+  $('#who').innerHTML=esc(S.me.name)+' でログイン中 <span class="upd2">最終更新 '+pad(lt.getHours())+':'+pad(lt.getMinutes())+'</span>'
+    +'<button class="logout" data-act="refresh">更新</button><button class="logout" data-act="logout">ログアウト</button>';
   var h='';
   h+=summaryHtml();
   h+='<div class="monthbar"><button class="nav" data-act="prev" aria-label="前の月">‹</button>'
@@ -590,6 +601,30 @@ function confirmedListHtml(){
   return h;
 }
 
+/* ---------- 回答(選ぶ → 送信) ---------- */
+function nowStr(){var n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())+' '+pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());}
+function ansState(d,slot){
+  var t=st(d,slot), dr=drafts[d+'|'+slot];
+  var saved=t.myAns?t.myAns.answer:'', savedC=t.myAns?(t.myAns.comment||''):'';
+  var sel=dr&&has(dr,'answer')?dr.answer:saved;
+  var cm=dr&&has(dr,'comment')?dr.comment:savedC;
+  var changed=!!dr&&(sel!==saved||(!!sel&&cm!==savedC));
+  return {t:t,saved:saved,sel:sel,comment:cm,changed:changed};
+}
+function sendRowHtml(d,slot,ro){
+  var a=ansState(d,slot), pn=S.partner.name, text, cls='';
+  if(a.changed){
+    text=a.sel?'まだ送信していません。「回答を送信」を押すと '+pn+' に届きます':'まだ送信していません(回答を取り消します)'; cls='warn';
+  }else if(a.saved){
+    var tm=fmtAt(a.t.myAns.at);
+    text='送信済み: '+SYM[a.saved]+' '+LAB[a.saved]+(tm?'('+tm+')':''); cls='sent';
+  }else{
+    text='未回答';
+  }
+  return '<button class="btn" data-act="sendans" data-slot="'+slot+'"'+((ro||!a.changed)?' disabled':'')+'>'+((a.saved&&!a.changed)?'送信済み':'回答を送信')+'</button>'
+    +'<span class="sst '+cls+'">'+esc(text)+'</span>';
+}
+
 /* ---------- 描画: 日ごとのシート ---------- */
 function renderSheet(){
   if(viewCard&&idx.card[viewCard]){renderDetail();return;}
@@ -636,8 +671,10 @@ function renderSheet(){
   }else{
     var ptOnly=SLOTS.filter(function(s,i){return sts[i].kind==='pt';});
     if(ptOnly.length>=2&&!ro){
+      var anyChanged=ptOnly.some(function(x){return ansState(d,x.k).changed;});
       h+='<div class="bulk"><span>'+esc(pt.name)+'の空きに まとめて回答:</span>'
-        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+LAB[v]+'</button>';}).join('')+'</div>';
+        +['OK','MAYBE','NG'].map(function(v){return '<button data-act="ansall" data-val="'+v+'">'+SYM[v]+' '+LAB[v]+'</button>';}).join('')
+        +'<button class="btn" data-act="sendall"'+(anyChanged?'':' disabled')+'>まとめて回答を送信</button></div>';
     }
     SLOTS.forEach(function(s,i){if(sts[i].kind)h+=cardHtml(d,s,sts[i],ro);});
     if(!ro)h+=confirmHtml(d,sts);
@@ -665,15 +702,17 @@ function cardHtml(d,s,t,ro){
   if(t.kind==='both'){
     h+='<p class="note OK">2人とも空いています。下の「確定」で確定できます。</p>';
   }else if(t.kind==='pt'){
+    var a=ansState(d,s.k);
     h+='<p class="note">'+esc(pt.name)+'から空きのリクエストです。ご都合は?</p><div class="ans">'
       +['OK','MAYBE','NG'].map(function(v){
-        return '<button class="ab '+v+(t.myAns&&t.myAns.answer===v?' on':'')+'" data-act="ans" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+LAB[v]+'</button>';
+        return '<button class="ab '+v+(a.sel===v?' on':'')+'" data-act="pick" data-slot="'+s.k+'" data-val="'+v+'"'+(ro?' disabled':'')+'>'+SYM[v]+' '+LAB[v]+'</button>';
       }).join('')+'</div>'
       +'<input type="text" class="cmt" data-slot="'+s.k+'" maxlength="100" placeholder="コメント(任意) 例:19時以降なら"'
-      +' value="'+esc(t.myAns?t.myAns.comment:'')+'"'+(ro?' disabled':'')+'>';
+      +' value="'+esc(a.comment)+'"'+(ro?' disabled':'')+'>'
+      +'<div class="sendrow" data-slot="'+s.k+'">'+sendRowHtml(d,s.k,ro)+'</div>';
   }else if(t.kind==='me'){
     if(t.ptAns){
-      h+='<p class="note '+t.ptAns.answer+'">'+esc(pt.name)+'の回答: <b>'+SYM[t.ptAns.answer]+' '+LAB[t.ptAns.answer]+'</b>'+(t.ptAns.answer==='OK'?'(下の「確定」で確定できます)':'')+'</p>'
+      h+='<p class="note '+t.ptAns.answer+'">'+esc(pt.name)+'の回答: <b>'+SYM[t.ptAns.answer]+' '+LAB[t.ptAns.answer]+'</b>'+(fmtAt(t.ptAns.at)?'('+fmtAt(t.ptAns.at)+')':'')+(t.ptAns.answer==='OK'?' 下の「確定」で確定できます':'')+'</p>'
         +(t.ptAns.comment?'<div class="cmtshow">コメント: '+esc(t.ptAns.comment)+'</div>':'');
     }else{
       h+='<p class="note wait">'+esc(pt.name)+'の回答待ちです。</p>';
@@ -773,18 +812,25 @@ function setOffers(d,slots,comments){
 }
 function saveAnswers(d,items){
   localSetAnswers(d,items); renderAll();
-  enqueue(function(){return call('apiSaveAnswers',d,items);});
+  enqueue(function(){return call('apiSaveAnswers',d,items).then(function(data){
+    var me=S.me.id;
+    items.forEach(function(it){   // 送ったのに残っていない = 相手が先にリクエストを取り消した
+      if(!it.answer)return;
+      var ok=data.answers.some(function(a){return a.date===d&&a.slot===it.slot&&a.by===me;});
+      if(!ok)toast('送信できませんでした。'+S.partner.name+'がリクエストを取り消した可能性があります',true);
+    });
+    return data;
+  });});
 }
-function cardComment(slot){var el=$('#panel .cmt[data-slot="'+slot+'"]');return el?el.value:'';}
 
 function open_(d){
-  openDate=d; viewCard=null;
+  openDate=d; viewCard=null; dirtyDetail=false;
   var p=d.split('-').map(Number); view={y:p[0],m:p[1]-1};
   $('#sheet').classList.remove('hidden');
   renderAll();
   $('#panel').scrollTop=0;
 }
-function close_(){openDate=null;viewCard=null;$('#sheet').classList.add('hidden');}
+function close_(){openDate=null;viewCard=null;dirtyDetail=false;$('#sheet').classList.add('hidden');}
 
 document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]'); if(!el||el.disabled)return;
@@ -816,15 +862,41 @@ document.addEventListener('click',function(e){
       setOffers(d,mySlots(d).filter(function(k){return k!==slot;}),offerComments());
       toast('リクエストを取り消しました'); break;
     }
-    case 'ans': {
-      var t=st(d,slot), same=t.myAns&&t.myAns.answer===val;
-      saveAnswers(d,[{slot:slot,answer:same?'':val,comment:same?'':cardComment(slot)}]); break;
+    case 'pick': {   // ○△×を選ぶだけ(まだ送信しない)。もう一度押すと選択を外す
+      var a2=ansState(d,slot), nv=(a2.sel===val)?'':val;
+      var cin=$('#panel .cmt[data-slot="'+slot+'"]');
+      drafts[d+'|'+slot]={answer:nv,comment:cin?cin.value:a2.comment};
+      renderSheet(); break;
     }
-    case 'ansall': {
-      var items=SLOTS.filter(function(s){return st(d,s.k).kind==='pt';}).map(function(s){
-        var t2=st(d,s.k); return {slot:s.k,answer:val,comment:t2.myAns?t2.myAns.comment:''};
+    case 'sendans': {
+      var a3=ansState(d,slot); if(!a3.changed)break;
+      delete drafts[d+'|'+slot];
+      saveAnswers(d,[{slot:slot,answer:a3.sel,comment:a3.sel?a3.comment:''}]);
+      toast(a3.sel?'送信しました':'回答を取り消しました'); break;
+    }
+    case 'ansall': {   // まとめて選ぶだけ(まだ送信しない)
+      SLOTS.forEach(function(x){
+        if(st(d,x.k).kind!=='pt')return;
+        var a4=ansState(d,x.k);
+        drafts[d+'|'+x.k]={answer:val,comment:a4.comment};
       });
-      saveAnswers(d,items); break;
+      renderSheet(); break;
+    }
+    case 'sendall': {
+      var items=[];
+      SLOTS.forEach(function(x){
+        if(st(d,x.k).kind!=='pt')return;
+        var a5=ansState(d,x.k); if(!a5.changed)return;
+        items.push({slot:x.k,answer:a5.sel,comment:a5.sel?a5.comment:''}); delete drafts[d+'|'+x.k];
+      });
+      if(!items.length)break;
+      saveAnswers(d,items); toast('送信しました'); break;
+    }
+    case 'refresh': {
+      if(dirtyDetail&&!confirm('入力中の内容が消えます。更新しますか?'))break;
+      dirtyDetail=false;
+      reload().then(function(){if(S)toast('最新の状態に更新しました');});
+      break;
     }
     case 'confirmdo': {
       var cslots=[].slice.call(document.querySelectorAll('#panel .c-slot:checked')).map(function(x){return x.value;});
@@ -835,20 +907,23 @@ document.addEventListener('click',function(e){
     case 'opencard': {
       var cid=el.getAttribute('data-card');
       if(date&&date!==openDate)open_(date);
-      viewCard=cid; renderSheet(); $('#panel').scrollTop=0; break;
+      viewCard=cid; dirtyDetail=false; renderSheet(); $('#panel').scrollTop=0; break;
     }
-    case 'closecard': viewCard=null; renderSheet(); break;
+    case 'closecard': viewCard=null; dirtyDetail=false; renderSheet(); break;
     case 'savecard': {
-      var f={title:$('#panel .d-title').value,start:$('#panel .d-start').value,end:$('#panel .d-end').value,
-             place:$('#panel .d-place').value,memo:$('#panel .d-memo').value};
-      var cardId=viewCard;
+      var cur={title:$('#panel .d-title').value,start:$('#panel .d-start').value,end:$('#panel .d-end').value,
+               place:$('#panel .d-place').value,memo:$('#panel .d-memo').value};
+      var base=idx.card[viewCard]||{}, f={};
+      Object.keys(cur).forEach(function(k){if(String(cur[k])!==String(base[k]||''))f[k]=cur[k];});   // 変えた項目だけ送る
+      if(!Object.keys(f).length){toast('変更はありません');break;}
+      var cardId=viewCard; dirtyDetail=false;
       enqueue(function(){return call('apiSaveCard',cardId,f);});
       toast('保存しました'); break;
     }
     case 'sendmsg': {
       var inp=$('#panel .d-msg'), text=inp?inp.value.trim():''; if(!text)break;
       var cardId2=viewCard;
-      D.messages.push({card:cardId2,by:S.me.id,text:text.slice(0,300),at:''}); build(); renderSheet();
+      dirtyDetail=false; D.messages.push({card:cardId2,by:S.me.id,text:text.slice(0,300),at:nowStr()}); build(); renderSheet();
       enqueue(function(){return call('apiAddMessage',cardId2,text);}); break;
     }
     case 'popopen': dismissPopup(); open_(date); break;
@@ -868,11 +943,16 @@ document.addEventListener('change',function(e){
     setOffers(openDate,mySlots(openDate),offerComments());
     return;
   }
-  if(el.classList.contains('cmt')){ // 回答のコメント(回答済みの場合だけ保存)
-    var slot=el.getAttribute('data-slot'), t=st(openDate,slot);
-    if(t.myAns)saveAnswers(openDate,[{slot:slot,answer:t.myAns.answer,comment:el.value}]);
-    else toast('先に ○ △ × を選ぶと、コメントも一緒に送られます');
+});
+document.addEventListener('input',function(e){
+  var el=e.target; if(!el.classList||!openDate)return;
+  if(el.classList.contains('cmt')){   // 回答のコメント: 下書きに入れて、「送信」の状態だけ更新
+    var sl=el.getAttribute('data-slot'), a=ansState(openDate,sl);
+    drafts[openDate+'|'+sl]={answer:a.sel,comment:el.value};
+    var row=$('#panel .sendrow[data-slot="'+sl+'"]'); if(row)row.innerHTML=sendRowHtml(openDate,sl,openDate<todayStr);
+    return;
   }
+  if(viewCard&&/\bd-(title|start|end|place|memo|msg)\b/.test(el.className))dirtyDetail=true;   // 詳細カードに入力中
 });
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape')return;
@@ -885,12 +965,19 @@ function toast(msg,isErr){
   clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.className='';},2600);
 }
 
-// 相手の更新を取り込む(シートを開いていない時だけ)。自動更新は「操作」には数えない
-setInterval(function(){if(!document.hidden&&!openDate&&!popupOpen&&pending===0&&S&&!checkIdle())reload();},30000);
+// 相手の更新を取り込む。入力中・送信中・お知らせ表示中は止める(入力が消えないように)。自動更新は「操作」には数えない
+var REFRESH_MS=20000;
+function safeToRefresh(){
+  if(!S||pending>0||popupOpen||document.hidden||dirtyDetail)return false;
+  var ae=document.activeElement;
+  if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&$('#panel').contains(ae))return false;
+  return true;
+}
+setInterval(function(){if(safeToRefresh()&&!checkIdle())reload();},REFRESH_MS);
 document.addEventListener('visibilitychange',function(){
   if(document.hidden)return;
   if(checkIdle())return;
-  if(!openDate&&!popupOpen&&pending===0&&S)reload();
+  if(safeToRefresh())reload();
 });
 
 // 起動: タブ内で最近まで操作していた場合だけ、そのまま続きから。それ以外はログイン画面
