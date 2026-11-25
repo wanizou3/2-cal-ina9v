@@ -62,8 +62,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 /* 月ナビ */
 .monthbar{display:flex;align-items:center;gap:6px;margin:4px 0 8px}
 .monthbar h2{flex:1;margin:0;font-size:17px;text-align:center;font-weight:700}
-.nav{border:1px solid var(--line);background:var(--card);border-radius:3px;min-width:38px;height:34px;font-size:16px}
-.nav.today{padding:0 12px;font-size:13px}
+.nav{border:1px solid var(--line);background:var(--card);border-radius:3px;min-width:38px;height:36px;padding:0 10px;font-size:13.5px;font-weight:700;white-space:nowrap;color:var(--pri)}
+@media (prefers-color-scheme: dark){ .nav{color:var(--ink)} }
+.nav.today{padding:0 10px;font-size:13px;font-weight:600;color:var(--ink)}
+.monthbar h2{font-size:16px;white-space:nowrap}
+.cal.anim-next{animation:slideNext .22s ease-out}
+.cal.anim-prev{animation:slidePrev .22s ease-out}
+@keyframes slideNext{from{transform:translateX(28px);opacity:.35}to{transform:none;opacity:1}}
+@keyframes slidePrev{from{transform:translateX(-28px);opacity:.35}to{transform:none;opacity:1}}
 
 /* 凡例 */
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--muted);margin-bottom:8px}
@@ -500,10 +506,10 @@ function renderAll(){
     +'<button class="logout" data-act="refresh">更新</button><button class="logout" data-act="logout">ログアウト</button>';
   var h='';
   h+=summaryHtml();
-  h+='<div class="monthbar"><button class="nav" data-act="prev" aria-label="前の月">‹</button>'
+  h+='<div class="monthbar"><button class="nav" data-act="prev" aria-label="前の月">＜ '+monthName(-1)+'</button>'
     +'<h2>'+view.y+'年'+(view.m+1)+'月</h2>'
     +'<button class="nav today" data-act="today">今日</button>'
-    +'<button class="nav" data-act="next" aria-label="次の月">›</button></div>';
+    +'<button class="nav" data-act="next" aria-label="次の月">'+monthName(1)+' ＞</button></div>';
   h+='<div class="legend"><span><i class="dot me"></i>あなたが提示</span><span><i class="dot pt"></i>'+esc(S.partner.name)+'が提示</span>'
     +'<span><i class="dot both"></i>2人とも空き(◎)</span><span><i class="dot conf"></i>確定</span>'
     +'<span>○行ける △要相談 ×難しい …回答待ち !要回答</span></div>';
@@ -512,6 +518,21 @@ function renderAll(){
   $('#main').innerHTML=h;
   if(openDate)renderSheet();
   checkPopup();
+}
+
+// 月の移動ボタンの表記。年がまたぐときだけ年も付ける(例: 2027年1月)
+function monthName(delta){
+  var m=view.m+delta, y=view.y;
+  if(m<0){m=11;y--;} else if(m>11){m=0;y++;}
+  return (y!==view.y?y+'年':'')+(m+1)+'月';
+}
+var calAnim='';
+function shiftMonth(delta){
+  view.m+=delta;
+  if(view.m<0){view.m=11;view.y--;} else if(view.m>11){view.m=0;view.y++;}
+  calAnim=delta>0?'next':'prev';
+  renderAll();
+  calAnim='';
 }
 
 function summaryHtml(){
@@ -543,7 +564,7 @@ function summaryHtml(){
 
 function calHtml(){
   var y=view.y,m=view.m,first=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate();
-  var h='<div class="cal">';
+  var h='<div class="cal'+(calAnim?' anim-'+calAnim:'')+'">';
   WD.forEach(function(w,i){h+='<div class="wd'+(i===0?' sun':'')+'">'+w+'</div>';});
   for(var i=0;i<first;i++)h+='<div class="day blank"></div>';
   for(var d=1;d<=dim;d++){
@@ -836,8 +857,8 @@ document.addEventListener('click',function(e){
   var act=el.getAttribute('data-act'), slot=el.getAttribute('data-slot'), val=el.getAttribute('data-val'), date=el.getAttribute('data-date');
   var d=openDate;
   switch(act){
-    case 'prev': view.m--; if(view.m<0){view.m=11;view.y--;} renderAll(); break;
-    case 'next': view.m++; if(view.m>11){view.m=0;view.y++;} renderAll(); break;
+    case 'prev': shiftMonth(-1); break;
+    case 'next': shiftMonth(1); break;
     case 'today': view={y:now.getFullYear(),m:now.getMonth()}; renderAll(); break;
     case 'open': open_(date); break;
     case 'gonext': open_(date); break;
@@ -953,7 +974,24 @@ document.addEventListener('input',function(e){
   }
   if(viewCard&&/\bd-(title|start|end|place|memo|msg)\b/.test(el.className))dirtyDetail=true;   // 詳細カードに入力中
 });
+// 画面を左右にスワイプして、月を移動(日のシート・お知らせを開いている間は、動かさない)
+var swX=0, swY=0, swT=0, swOn=false;
+document.addEventListener('touchstart',function(e){
+  if(e.touches.length!==1){swOn=false;return;}
+  var t=e.touches[0]; swX=t.clientX; swY=t.clientY; swT=Date.now();
+  swOn=!!S&&!openDate&&!popupOpen&&!!e.target.closest('#main');
+},{passive:true});
+document.addEventListener('touchend',function(e){
+  if(!swOn)return; swOn=false;
+  var t=e.changedTouches[0], dx=t.clientX-swX, dy=t.clientY-swY;
+  if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.6&&Date.now()-swT<900)shiftMonth(dx<0?1:-1);
+},{passive:true});
+document.addEventListener('touchcancel',function(){swOn=false;},{passive:true});
+// パソコン: 左右の矢印キーでも、月を移動
 document.addEventListener('keydown',function(e){
+  if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&S&&!openDate&&!popupOpen&&!/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||'')){
+    shiftMonth(e.key==='ArrowRight'?1:-1);return;
+  }
   if(e.key!=='Escape')return;
   if(popupOpen)dismissPopup(); else if(openDate)close_();
 });
